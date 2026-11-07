@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% load evaluaciones_tags %}
+
+{% block title %}Matriz de Control: {{ tarea.titulo }} — UEPMRMP{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Módulo Docente · Control de Entregas</span>
+    <h1>{{ tarea.titulo }}</h1>
+    <p>
+      <strong>Curso:</strong> {{ tarea.curso|format_course_name }} &nbsp;|&nbsp;
+      <strong>Materia:</strong> {{ tarea.materia.nombre }} &nbsp;|&nbsp;
+      <strong>Fecha límite:</strong> {{ tarea.fecha_entrega|date:"d/m/Y H:i" }} &nbsp;|&nbsp;
+      <strong>Peso:</strong> {{ tarea.peso_porcentual }}%
+    </p>
+  </div>
+  <div style="display: flex; gap: 0.5rem;">
+    <a class="button button-outline" href="{% url 'docente-tarea-edit' tarea.pk %}">Editar Tarea</a>
+    <a class="button button-outline" href="{% url 'docente-tareas-list' %}">Volver</a>
+  </div>
+</div>
+
+{% if tarea.descripcion %}
+<div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem;">
+  <strong style="color: #002855; font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em; display: block; margin-bottom: 0.4rem;">Instrucciones:</strong>
+  <p style="margin: 0; color: #334155; line-height: 1.5;">{{ tarea.descripcion }}</p>
+  {% if tarea.archivo_adjunto %}
+    <div style="margin-top: 0.75rem;">
+      <a href="{{ tarea.archivo_adjunto.url }}" target="_blank" class="button button-small button-outline" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+        <span>Descargar Guía Adjunta</span>
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endif %}
+
+<!-- Tarjetas resumen de estado (Matriz de Control) -->
+<section class="stat-grid" style="margin-bottom: 1.5rem;">
+  <article class="stat-card">
+    <span>Total Estudiantes</span>
+    <strong>{{ total_estudiantes }}</strong>
+    <small>en la nómina del curso</small>
+  </article>
+
+  <article class="stat-card" style="border-top: 4px solid #10b981;">
+    <span style="color: #047857; font-weight: 600;">Entregados a Tiempo</span>
+    <strong style="color: #047857;">{{ conteo_entregados }}</strong>
+    <small>entregas puntuales</small>
+  </article>
+
+  <article class="stat-card" style="border-top: 4px solid #f59e0b;">
+    <span style="color: #b45309; font-weight: 600;">Entregados Atrasados</span>
+    <strong style="color: #b45309;">{{ conteo_atrasados }}</strong>
+    <small>entregas fuera de plazo</small>
+  </article>
+
+  <article class="stat-card" style="border-top: 4px solid #ef4444;">
+    <span style="color: #b91c1c; font-weight: 600;">Pendientes de Entrega</span>
+    <strong style="color: #b91c1c;">{{ conteo_pendientes }}</strong>
+    <small>sin archivo subido</small>
+  </article>
+</section>
+
+<!-- Matriz de Control por Estudiante -->
+<section class="data-section">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Supervisión</span>
+      <h2>Matriz de Control y Calificación</h2>
+    </div>
+    <span class="section-count">{{ conteo_calificados }} de {{ total_estudiantes }} calificados</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Estudiante</th>
+          <th>Cédula</th>
+          <th>Estado de Entrega</th>
+          <th>Archivo Adjunto</th>
+          <th>Fecha de Entrega</th>
+          <th>Calificación (10.00)</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in matriz %}
+          <tr>
+            <td>
+              <strong>{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}</strong>
+              <small class="table-subtitle">{{ item.estudiante.email }}</small>
+            </td>
+            <td><code>{{ item.estudiante.identification|default:item.estudiante.username }}</code></td>
+            <td>
+              {% if item.estado == "ENTREGADO" %}
+                <span class="status-pill" style="background: #ecfdf5; color: #047857; font-weight: 700; border: 1px solid #a7f3d0;">
+                  ENTREGADO
+                </span>
+              {% elif item.estado == "ATRASADO" %}
+                <span class="status-pill" style="background: #fffbeb; color: #b45309; font-weight: 700; border: 1px solid #fde68a;">
+                  ATRASADO
+                </span>
+              {% else %}
+                <span class="status-pill" style="background: #fef2f2; color: #b91c1c; font-weight: 700; border: 1px solid #fecaca;">
+                  PENDIENTE
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.tiene_archivo %}
+                <a href="{{ item.entrega.archivo.url }}" target="_blank" class="text-action" style="font-weight: 600; color: #2563eb;">
+                  Ver archivo subido
+                </a>
+                {% if item.entrega.comentario %}
+                  <small style="display: block; color: #64748b; font-style: italic;">"{{ item.entrega.comentario|truncatechars:40 }}"</small>
+                {% endif %}
+              {% else %}
+                <span style="color: #94a3b8; font-size: 0.88rem;">Sin entrega</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.entrega %}
+                <small>{{ item.entrega.fecha_subida|date:"d/m/Y H:i" }}</small>
+              {% else %}
+                <span style="color: #94a3b8;">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.calificacion is not None %}
+                <strong style="font-size: 1.05rem; {% if item.calificacion >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                  {{ item.calificacion }} / 10.00
+                </strong>
+                {% if item.retroalimentacion %}
+                  <small style="display: block; color: #64748b;">{{ item.retroalimentacion|truncatechars:35 }}</small>
+                {% endif %}
+              {% else %}
+                <span style="color: #94a3b8; font-style: italic;">Sin calificar</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.entrega %}
+                <button type="button" class="button button-small button-outline" onclick="openGradeModal('{{ item.entrega.pk }}', '{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}', '{{ item.calificacion|default:'' }}', '{{ item.retroalimentacion|escapejs }}')">
+                  {% if item.calificacion is not None %}Re-calificar{% else %}Calificar{% endif %}
+                </button>
+              {% else %}
+                <span style="color: #cbd5e1; font-size: 0.8rem;">No entregado</span>
+              {% endif %}
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="empty-state">No hay estudiantes matriculados en este curso.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Modal para calificar entrega -->
+<div id="gradeModal" style="display: none; position: fixed; inset: 0; background: rgba(10,35,66,0.6); z-index: 9999; align-items: center; justify-content: center;">
+  <div style="background: #ffffff; border-radius: 1rem; width: 100%; max-width: 500px; padding: 2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+    <h3 id="modalStudentName" style="color: #002855; margin-top: 0; margin-bottom: 0.5rem; font-size: 1.25rem;">Calificar Entrega</h3>
+    <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 1.5rem;">Asigna una nota sobre 10.00 y añade retroalimentación pedagógica.</p>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="calificar_entrega_id" id="modalEntregaId">
+
+      <div style="margin-bottom: 1.25rem;">
+        <label for="modalGradeInput" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Calificación (0.00 - 10.00) *</label>
+        <input type="number" step="0.01" min="0" max="10" name="calificacion" id="modalGradeInput" required style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 1.1rem; font-weight: 700;">
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <label for="modalFeedbackInput" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Retroalimentación / Observaciones</label>
+        <textarea name="retroalimentacion" id="modalFeedbackInput" rows="3" placeholder="Comentarios del docente..." style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 0.95rem;"></textarea>
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <button type="button" class="button button-outline" onclick="closeGradeModal()">Cancelar</button>
+        <button type="submit" class="button button-primary">Guardar Nota</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openGradeModal(entregaId, studentName, grade, feedback) {
+    document.getElementById("modalEntregaId").value = entregaId;
+    document.getElementById("modalStudentName").textContent = "Calificar a " + studentName;
+    document.getElementById("modalGradeInput").value = grade || "";
+    document.getElementById("modalFeedbackInput").value = feedback || "";
+    const modal = document.getElementById("gradeModal");
+    modal.style.display = "flex";
+  }
+
+  function closeGradeModal() {
+    document.getElementById("gradeModal").style.display = "none";
+  }
+
+  window.addEventListener("click", function(e) {
+    const modal = document.getElementById("gradeModal");
+    if (e.target === modal) {
+      closeGradeModal();
+    }
+  });
+</script>
+{% endblock %}
+

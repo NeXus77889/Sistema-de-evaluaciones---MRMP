@@ -3,7 +3,16 @@ from django.contrib.auth import get_user_model
 
 # pyrefly: ignore[missing-import]
 from apps.evaluaciones.academic import grouped_course_choices
-from apps.evaluaciones.models import AsignacionDocente, Curso, Exam, Materia
+from apps.evaluaciones.models import (
+    AsignacionDocente,
+    Curso,
+    EntregaTarea,
+    Exam,
+    InsumoCalificacion,
+    Materia,
+    RegistroCalificacion,
+    Tarea,
+)
 from apps.evaluaciones.widgets import GroupedCourseCheckboxSelectMultiple
 
 # pyrefly: ignore[missing-import]
@@ -165,3 +174,94 @@ class ExamForm(forms.ModelForm):
             ),
             "students": forms.SelectMultiple(attrs={"size": 6}),
         }
+
+
+class TareaForm(forms.ModelForm):
+    class Meta:
+        model = Tarea
+        fields = [
+            "curso",
+            "materia",
+            "titulo",
+            "descripcion",
+            "fecha_entrega",
+            "peso_porcentual",
+            "archivo_adjunto",
+            "activo",
+        ]
+        widgets = {
+            "descripcion": forms.Textarea(attrs={"rows": 3, "placeholder": "Instrucciones detalladas de la tarea..."}),
+            "fecha_entrega": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
+            "peso_porcentual": forms.NumberInput(attrs={"step": "0.1", "min": "0.1", "max": "100"}),
+        }
+
+    def __init__(self, *args, docente=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.docente = docente
+        if docente:
+            if not (docente.is_superuser or getattr(docente, "rol", "") == "ADMIN"):
+                assignments = AsignacionDocente.objects.filter(docente=docente, activo=True)
+                self.fields["curso"].queryset = Curso.objects.filter(asignaciones__in=assignments).distinct()
+                self.fields["materia"].queryset = Materia.objects.filter(asignaciones__in=assignments).distinct()
+
+    def clean(self):
+        cleaned_data = super().clean()
+        curso = cleaned_data.get("curso")
+        materia = cleaned_data.get("materia")
+        if self.docente and curso and materia:
+            if not (self.docente.is_superuser or getattr(self.docente, "rol", "") == "ADMIN"):
+                assigned = AsignacionDocente.objects.filter(
+                    docente=self.docente,
+                    materia=materia,
+                    curso=curso,
+                    activo=True,
+                ).exists()
+                if not assigned:
+                    raise forms.ValidationError("No tienes asignada esa materia en el curso seleccionado.")
+        return cleaned_data
+
+
+class EntregaTareaForm(forms.ModelForm):
+    class Meta:
+        model = EntregaTarea
+        fields = ["archivo", "comentario"]
+        widgets = {
+            "comentario": forms.Textarea(attrs={"rows": 3, "placeholder": "Comentarios o notas de entrega..."}),
+        }
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data.get("archivo")
+        if not archivo and not self.instance.archivo:
+            raise forms.ValidationError("Debes adjuntar un archivo para realizar la entrega.")
+        return archivo
+
+
+class CalificarEntregaForm(forms.ModelForm):
+    class Meta:
+        model = EntregaTarea
+        fields = ["calificacion", "retroalimentacion"]
+        widgets = {
+            "calificacion": forms.NumberInput(attrs={"step": "0.01", "min": "0", "max": "10"}),
+            "retroalimentacion": forms.Textarea(attrs={"rows": 3, "placeholder": "Observaciones y retroalimentación institucional..."}),
+        }
+
+
+class InsumoCalificacionForm(forms.ModelForm):
+    class Meta:
+        model = InsumoCalificacion
+        fields = ["curso", "materia", "nombre", "tipo", "periodo", "ponderacion", "publicado"]
+        widgets = {
+            "ponderacion": forms.NumberInput(attrs={"step": "0.01", "min": "0.01", "max": "100"}),
+            "periodo": forms.TextInput(attrs={"placeholder": "Ej: Primer Quimestre - Parcial 1"}),
+        }
+
+    def __init__(self, *args, docente=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.docente = docente
+        if docente:
+            if not (docente.is_superuser or getattr(docente, "rol", "") == "ADMIN"):
+                assignments = AsignacionDocente.objects.filter(docente=docente, activo=True)
+                self.fields["curso"].queryset = Curso.objects.filter(asignaciones__in=assignments).distinct()
+                self.fields["materia"].queryset = Materia.objects.filter(asignaciones__in=assignments).distinct()

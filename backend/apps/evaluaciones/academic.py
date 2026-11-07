@@ -72,18 +72,29 @@ def format_course_name(course_or_name, code=""):
         return ""
 
     norm = _normalized(f"{text} {code}".strip())
+    n_text = _normalized(text)
+    n_code = _normalized(code)
 
     # Inicial
     if "inicial" in norm:
         match_init = re.search(r"\b(1|2)\b", norm)
         return f"Inicial {match_init.group(1)}" if match_init else "Inicial"
 
-    # Paralelo: busca explícitamente "paralelo X" o terminación en letra
-    par_match = re.search(r"\bparalelo\s*([a-z0-9])\b", norm)
+    # Paralelo: busca explícitamente en el texto primero, luego en el código
+    parallel = None
+    par_match = re.search(r"\bparalelo\s*([a-z0-9])\b", n_text)
     if not par_match:
-        par_match = re.search(r"[\s\-_]([a-z])\s*$", norm)
-    parallel = par_match.group(1).upper() if par_match else "A"
-    if parallel not in ("A", "B", "C", "D", "E", "F"):
+        par_match = re.search(r"[\s\-_]([a-z])\s*$", n_text)
+    if par_match:
+        parallel = par_match.group(1).upper()
+    elif code:
+        par_match_code = re.search(r"\bparalelo\s*([a-z0-9])\b", n_code)
+        if not par_match_code:
+            par_match_code = re.search(r"[\s\-_]([a-z])\s*$", n_code)
+        if par_match_code:
+            parallel = par_match_code.group(1).upper()
+
+    if not parallel or parallel not in ("A", "B", "C", "D", "E", "F"):
         parallel = "A"
 
     # Grado
@@ -222,3 +233,23 @@ def group_items_by_level(items, exam_getter=lambda item: item):
         for key in DASHBOARD_LEVEL_LABELS
         if grouped[key]
     ]
+
+
+def format_action_repr(repr_str):
+    """
+    Estandariza textos de representación en logs y acciones:
+    Ej: 'Juanito farralas - matemática - Segundo Curso Informática - Paralelo A'
+    ->  'Juanito farralas - matemática - 2º BGU Informática A'
+    """
+    if not repr_str:
+        return ""
+    parts = str(repr_str).split(" - ")
+    if len(parts) >= 3:
+        # Check course in the last segment (or last two segments if "Paralelo A" was separated)
+        combined_last = " ".join(parts[2:])
+        fmt_combined = format_course_name(combined_last)
+        if fmt_combined and fmt_combined != combined_last:
+            return f"{parts[0]} - {parts[1]} - {fmt_combined}"
+        parts[-1] = format_course_name(parts[-1])
+        return " - ".join(parts)
+    return format_course_name(repr_str)

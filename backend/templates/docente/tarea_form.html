@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% load evaluaciones_tags %}
+
+{% block title %}{% if is_edit %}Editar Tarea{% else %}Nueva Tarea{% endif %} — Panel Docente{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Módulo Docente</span>
+    <h1>{% if is_edit %}Editar Tarea{% else %}Crear Nueva Tarea{% endif %}</h1>
+    <p>Define los parámetros académicos, fecha límite y adjunta material de apoyo.</p>
+  </div>
+  <a class="button button-outline" href="{% url 'docente-tareas-list' %}">Volver al listado</a>
+</div>
+
+<section class="data-section" style="max-width: 800px; margin: 0 auto; background: #ffffff; border-radius: 1rem; border: 1px solid #e2e8f0; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div style="background: #fef2f2; border-left: 4px solid #ef4444; padding: 1rem; border-radius: 0.5rem; margin-bottom: 1.5rem; color: #991b1b;">
+        {% for error in form.non_field_errors %}
+          <p style="margin: 0;">{{ error }}</p>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+      <div>
+        <label for="{{ form.curso.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Curso Destino *</label>
+        {{ form.curso }}
+        {% if form.curso.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.curso.errors.0 }}</span>{% endif %}
+      </div>
+      <div>
+        <label for="{{ form.materia.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Materia / Asignatura *</label>
+        {{ form.materia }}
+        {% if form.materia.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.materia.errors.0 }}</span>{% endif %}
+      </div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label for="{{ form.titulo.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Título de la Tarea *</label>
+      {{ form.titulo }}
+      {% if form.titulo.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.titulo.errors.0 }}</span>{% endif %}
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label for="{{ form.descripcion.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Instrucciones / Descripción</label>
+      {{ form.descripcion }}
+      {% if form.descripcion.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.descripcion.errors.0 }}</span>{% endif %}
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+      <div>
+        <label for="{{ form.fecha_entrega.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Fecha y Hora Límite *</label>
+        {{ form.fecha_entrega }}
+        {% if form.fecha_entrega.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.fecha_entrega.errors.0 }}</span>{% endif %}
+      </div>
+      <div>
+        <label for="{{ form.peso_porcentual.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Peso Porcentual (%)</label>
+        {{ form.peso_porcentual }}
+        {% if form.peso_porcentual.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.peso_porcentual.errors.0 }}</span>{% endif %}
+      </div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label for="{{ form.archivo_adjunto.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Guía o Material Adjunto (opcional)</label>
+      {{ form.archivo_adjunto }}
+      {% if form.archivo_adjunto.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.archivo_adjunto.errors.0 }}</span>{% endif %}
+      {% if tarea and tarea.archivo_adjunto %}
+        <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.4rem;">
+          Archivo actual: <a href="{{ tarea.archivo_adjunto.url }}" target="_blank" style="color: #2563eb;">{{ tarea.archivo_adjunto.name }}</a>
+        </p>
+      {% endif %}
+    </div>
+
+    <div style="margin-bottom: 2rem; display: flex; align-items: center; gap: 0.5rem;">
+      {{ form.activo }}
+      <label for="{{ form.activo.id_for_label }}" style="font-weight: 600; color: #1e293b; cursor: pointer;">Tarea Activa (visible para estudiantes)</label>
+    </div>
+
+    <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+      <a href="{% url 'docente-tareas-list' %}" class="button button-outline">Cancelar</a>
+      <button type="submit" class="button button-primary">{% if is_edit %}Guardar Cambios{% else %}Publicar Tarea{% endif %}</button>
+    </div>
+  </form>
+</section>
+
+<style>
+  input[type="text"], input[type="datetime-local"], input[type="number"], select, textarea {
+    width: 100%;
+    padding: 0.65rem 0.85rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.5rem;
+    font-size: 0.95rem;
+    color: #1e293b;
+    background-color: #f8fafc;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  input[type="text"]:focus, input[type="datetime-local"]:focus, input[type="number"]:focus, select:focus, textarea:focus {
+    border-color: #2563eb;
+    outline: none;
+    background-color: #ffffff;
+    box-shadow: 0 0 0 3px rgba(37,99,235,0.12);
+  }
+</style>
+{% endblock %}
+

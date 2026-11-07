@@ -3,6 +3,8 @@ from io import BytesIO
 from zipfile import BadZipFile, ZipFile
 
 from docx import Document
+from docx.table import Table
+from docx.text.paragraph import Paragraph
 
 
 class DocxImportError(ValueError):
@@ -11,18 +13,40 @@ class DocxImportError(ValueError):
 
 _MAX_UNCOMPRESSED_SIZE = 50 * 1024 * 1024
 _QUESTION_RE = re.compile(
-    r"^\s*(?:(?:pregunta\s+)?\d{1,3}\s*[.)\-:]\s*)(.+)$",
+    r"^\s*(?:(?:pregunta|item|reactivo)\s+)?\d{1,3}\s*[.)\-:]\s*(.+)$",
     re.IGNORECASE,
 )
 _OPTION_RE = re.compile(
-    r"^\s*(?:\(([A-L])\)|\[([A-L])\]|([A-L])[.)]|([A-L]):)\s*(.+)$",
+    r"^\s*(?:\(([A-La-l])\)|\[([A-La-l])\]|([A-La-l])[.)\-:]|([A-La-l]):)\s*(.+)$",
     re.IGNORECASE,
 )
-_ANSWER_MARKER_RE = re.compile(r"^(?:\[x\]|☒|✓|\*)\s*", re.IGNORECASE)
+_ANSWER_START_MARKER_RE = re.compile(r"^(?:\[x\]|\[X\]|\(x\)|\(X\)|☒|☑|✓|\*)\s*", re.IGNORECASE)
+_ANSWER_END_MARKER_RE = re.compile(r"\s*(?:\[x\]|\[X\]|\(x\)|\(X\)|☒|☑|✓|\*)\s*$", re.IGNORECASE)
+
+
+def _iter_document_paragraphs(document):
+    """
+    Extrae todos los párrafos del documento (incluyendo tablas y celdas)
+    preservando el orden secuencial del cuerpo del documento,
+    e ignorando de forma segura runs colgados, celdas fusionadas duplicadas y formatos nulos.
+    """
+    for child in document.element.body:
+        if child.tag.endswith("p"):
+            yield Paragraph(child, document)
+        elif child.tag.endswith("tbl"):
+            tbl = Table(child, document)
+            seen_cells = set()
+            for row in tbl.rows:
+                for cell in row.cells:
+                    if cell._tc in seen_cells:
+                        continue
+                    seen_cells.add(cell._tc)
+                    for paragraph in cell.paragraphs:
+                        yield paragraph
 
 
 def parse_docx_questions(uploaded_file):
-    content = uploaded_file.read()
+    content = uploaded_file.read() if hasattr(uploaded_file, "read") else uploaded_file
     try:
         with ZipFile(BytesIO(content)) as archive:
             if len(archive.infolist()) > 2000:
@@ -35,7 +59,7 @@ def parse_docx_questions(uploaded_file):
     except BadZipFile as error:
         raise DocxImportError("El archivo no es un documento .docx válido.") from error
     except Exception as error:
-        raise DocxImportError("No se pudo leer el documento Word.") from error
+        raise DocxImportError(f"No se pudo leer el documento Word: {error}") from error
 
     parsed = []
     current = None
@@ -44,23 +68,47 @@ def parse_docx_questions(uploaded_file):
         if current and current["options"]:
             parsed.append(current)
 
-    for paragraph in document.paragraphs:
-        text = paragraph.text.strip()
+    for paragraph in _iter_document_paragraphs(document):
+        try:
+            raw_text = paragraph.text
+        except (AttributeError, ValueError):
+            continue
+
+        if not raw_text:
+            continue
+        text = re.sub(r"[\xa0\s]+", " ", str(raw_text)).strip()
         if not text:
             continue
 
+        # Detección de opción de respuesta
         option_match = _OPTION_RE.match(text)
         if option_match and current:
+            # Obtener el texto de la alternativa (grupo 5)
             option_text = option_match.group(5).strip()
-            marker_match = _ANSWER_MARKER_RE.match(option_text)
-            marked = marker_match is not None or any(
-                run.bold for run in paragraph.runs if run.text.strip()
-            )
-            if marker_match:
-                option_text = option_text[marker_match.end():].strip()
+            start_marker = _ANSWER_START_MARKER_RE.match(option_text)
+            end_marker = _ANSWER_END_MARKER_RE.search(option_text)
+            marked = start_marker is not None or end_marker is not None
+
+            if not marked:
+                # Comprobar formato en negrita de runs de forma segura
+                try:
+                    marked = any(
+                        getattr(run, "bold", False)
+                        for run in getattr(paragraph, "runs", [])
+                        if run and getattr(run, "text", "") and str(run.text).strip()
+                    )
+                except (AttributeError, ValueError):
+                    marked = False
+
+            if start_marker:
+                option_text = option_text[start_marker.end():].strip()
+            if end_marker:
+                option_text = option_text[:end_marker.start()].strip()
+
             current["options"].append({"text": option_text, "marked": marked})
             continue
 
+        # Detección de pregunta
         question_match = _QUESTION_RE.match(text)
         if question_match:
             store_current()

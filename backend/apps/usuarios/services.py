@@ -50,30 +50,131 @@ def _sanitize_sheet_name(value):
     return re.sub(r"\s+", " ", text).strip()
 
 
+VALID_MIME_TYPES = {
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "application/vnd.ms-excel",
+    "application/msexcel",
+    "application/x-msexcel",
+    "application/x-excel",
+    "application/excel",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "text/csv",
+    "text/plain",
+    "application/octet-stream",
+}
+
+
+def _validate_mime(source: BinaryIO):
+    content_type = getattr(source, "content_type", None)
+    if content_type and content_type.lower() not in VALID_MIME_TYPES:
+        raise NominaImportError(f"Tipo de archivo no permitido: {content_type}.")
+
+
 def _read_sheets(source: BinaryIO, filename: str):
+    _validate_mime(source)
     extension = Path(filename).suffix.lower()
-    if extension == ".xlsx":
-        workbook = load_workbook(source, read_only=True, data_only=True)
+    if hasattr(source, "seek"):
         try:
-            return [
-                (sheet.title, list(sheet.iter_rows(values_only=True)))
-                for sheet in workbook.worksheets
-            ]
-        finally:
-            workbook.close()
-    if extension == ".xls":
-        workbook = xlrd.open_workbook(file_contents=source.read(), on_demand=True)
+            source.seek(0)
+        except Exception:
+            pass
+    content = source.read()
+    if hasattr(source, "seek"):
         try:
-            return [
-                (
-                    sheet.name,
-                    [sheet.row_values(index) for index in range(sheet.nrows)],
-                )
-                for sheet in workbook.sheets()
-            ]
-        finally:
-            workbook.release_resources()
-    raise NominaImportError("El archivo debe tener extensión .xlsx o .xls.")
+            source.seek(0)
+        except Exception:
+            pass
+
+    # Detección inteligente por cabeceras mágicas o extensión
+    is_zip = content.startswith(b"PK\x03\x04")
+    is_ole = content.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1")
+
+    # Word .docx con tablas de nóminas
+    if extension == ".docx" or (is_zip and extension not in (".xlsx", ".xlsm")):
+        try:
+            from docx import Document
+            from io import BytesIO
+            doc = Document(BytesIO(content))
+            sheets = []
+            for index, table in enumerate(doc.tables, start=1):
+                sheet_rows = []
+                seen_cells = set()
+                for row in table.rows:
+                    row_vals = []
+                    for cell in row.cells:
+                        if cell._tc in seen_cells:
+                            continue
+                        seen_cells.add(cell._tc)
+                        row_vals.append(_cell_text(cell.text))
+                    if any(row_vals):
+                        sheet_rows.append(row_vals)
+                if sheet_rows:
+                    sheets.append((f"Tabla {index}", sheet_rows))
+            if sheets:
+                return sheets
+        except Exception:
+            pass
+
+    # Excel moderno (.xlsx)
+    if extension in (".xlsx", ".xlsm") or is_zip:
+        try:
+            from io import BytesIO
+            workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+            try:
+                return [
+                    (sheet.title, list(sheet.iter_rows(values_only=True)))
+                    for sheet in workbook.worksheets
+                ]
+            finally:
+                workbook.close()
+        except Exception as openpyxl_error:
+            # Fallback a xlrd por si fue renombrado
+            try:
+                workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+                try:
+                    return [
+                        (
+                            sheet.name,
+                            [sheet.row_values(index) for index in range(sheet.nrows)],
+                        )
+                        for sheet in workbook.sheets()
+                    ]
+                finally:
+                    workbook.release_resources()
+            except Exception:
+                raise NominaImportError(f"No se pudo leer el archivo Excel (.xlsx): {openpyxl_error}")
+
+    # Excel heredado (.xls)
+    if extension == ".xls" or is_ole:
+        try:
+            workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
+            try:
+                return [
+                    (
+                        sheet.name,
+                        [sheet.row_values(index) for index in range(sheet.nrows)],
+                    )
+                    for sheet in workbook.sheets()
+                ]
+            finally:
+                workbook.release_resources()
+        except Exception as xlrd_error:
+            # Fallback a openpyxl por si es en realidad un xlsx
+            try:
+                from io import BytesIO
+                workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
+                try:
+                    return [
+                        (sheet.title, list(sheet.iter_rows(values_only=True)))
+                        for sheet in workbook.worksheets
+                    ]
+                finally:
+                    workbook.close()
+            except Exception:
+                raise NominaImportError(f"No se pudo leer el archivo Excel (.xls): {xlrd_error}")
+
+    raise NominaImportError("El archivo debe tener extensión .xlsx, .xls o contener tablas .docx.")
 
 
 def _standard_records(rows):
@@ -311,9 +412,23 @@ def _empty_summary():
 
 
 def _read_teacher_sheets(source: BinaryIO, filename: str):
+    _validate_mime(source)
     extension = Path(filename).suffix.lower()
-    if extension == ".xlsx":
-        workbook = load_workbook(source, read_only=True, data_only=True)
+    if hasattr(source, "seek"):
+        try:
+            source.seek(0)
+        except Exception:
+            pass
+    content = source.read()
+    if hasattr(source, "seek"):
+        try:
+            source.seek(0)
+        except Exception:
+            pass
+
+    if extension == ".xlsx" or content.startswith(b"PK\x03\x04"):
+        from io import BytesIO
+        workbook = load_workbook(BytesIO(content), read_only=True, data_only=True)
         try:
             return [
                 (sheet.title, list(sheet.iter_rows(values_only=True)))
@@ -321,14 +436,35 @@ def _read_teacher_sheets(source: BinaryIO, filename: str):
             ]
         finally:
             workbook.close()
-    if extension == ".csv":
-        text = source.read().decode("utf-8-sig")
+    if extension == ".xls" or content.startswith(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"):
+        workbook = xlrd.open_workbook(file_contents=content, on_demand=True)
         try:
-            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
+            return [
+                (
+                    sheet.name,
+                    [sheet.row_values(index) for index in range(sheet.nrows)],
+                )
+                for sheet in workbook.sheets()
+            ]
+        finally:
+            workbook.release_resources()
+    if extension == ".csv":
+        encodings = ["utf-8-sig", "utf-8", "cp1252", "latin-1", "iso-8859-1"]
+        text = None
+        for enc in encodings:
+            try:
+                text = content.decode(enc)
+                break
+            except UnicodeDecodeError:
+                continue
+        if text is None:
+            text = content.decode("latin-1", errors="replace")
+        try:
+            dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t|")
         except csv.Error:
             dialect = csv.excel
         return [(Path(filename).stem, list(csv.reader(StringIO(text), dialect)))]
-    raise NominaImportError("El archivo de docentes debe ser .xlsx o .csv.")
+    raise NominaImportError("El archivo de docentes debe ser .xlsx, .xls o .csv.")
 
 
 def _teacher_records(sheet_name, rows):
@@ -389,13 +525,25 @@ def _resolve_subject(value):
 
 
 def _resolve_course(value):
+    from apps.evaluaciones.academic import format_course_name
+
     normalized = _normalise_text(value)
+    standardized = format_course_name(value)
+    norm_standardized = _normalise_text(standardized)
+
     courses = list(Curso.objects.all())
     for course in courses:
-        if normalized in {_normalise_text(course.nombre), _normalise_text(course.codigo)}:
+        course_norm = _normalise_text(course.nombre)
+        course_str_norm = _normalise_text(str(course))
+        course_code_norm = _normalise_text(course.codigo)
+        if (
+            normalized in {course_norm, course_str_norm, course_code_norm}
+            or norm_standardized in {course_norm, course_str_norm, course_code_norm}
+        ):
             return course
 
     course_name, parallel = _split_parallel(value)
+    parallel = parallel or "A"
     try:
         code = _course_code(course_name, parallel)
     except NominaImportError:

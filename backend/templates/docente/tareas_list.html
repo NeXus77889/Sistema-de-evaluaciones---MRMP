@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% load evaluaciones_tags %}
+
+{% block title %}Gestión de Tareas — Panel Docente{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Módulo Docente</span>
+    <h1>Gestión de Tareas</h1>
+    <p>Crea tareas académicas, supervisa las entregas y califica a tus estudiantes.</p>
+  </div>
+  <a class="button button-primary" href="{% url 'docente-tarea-create' %}">+ Nueva Tarea</a>
+</div>
+
+<!-- Filtros de búsqueda -->
+<section class="data-section" style="margin-bottom: 1.5rem;">
+  <form method="get" class="filter-panel" style="padding: 1rem 1.25rem;">
+    <div class="filter-fields" style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+      <label class="filter-field" style="flex: 1; min-width: 220px;">
+        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">Curso</span>
+        <select name="curso" onchange="this.form.submit()" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #cbd5e1;">
+          <option value="">Todos tus cursos</option>
+          {% for c in cursos_filtro %}
+            <option value="{{ c.pk }}" {% if selected_curso == c.pk|stringformat:"s" %}selected{% endif %}>{{ c|format_course_name }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="filter-field" style="flex: 1; min-width: 220px;">
+        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">Materia</span>
+        <select name="materia" onchange="this.form.submit()" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #cbd5e1;">
+          <option value="">Todas tus materias</option>
+          {% for m in materias_filtro %}
+            <option value="{{ m.pk }}" {% if selected_materia == m.pk|stringformat:"s" %}selected{% endif %}>{{ m.nombre }}</option>
+          {% endfor %}
+        </select>
+      </label>
+
+      {% if selected_curso or selected_materia %}
+        <a href="{% url 'docente-tareas-list' %}" class="button button-outline button-small" style="height: 38px; display: inline-flex; align-items: center;">Limpiar filtros</a>
+      {% endif %}
+    </div>
+  </form>
+</section>
+
+<!-- Listado de tareas -->
+<section class="data-section">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Asignaciones</span>
+      <h2>Tareas Registradas</h2>
+    </div>
+    <span class="section-count">{{ tareas_data|length }} tarea{% if tareas_data|length != 1 %}s{% endif %}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tarea / Asignatura</th>
+          <th>Curso</th>
+          <th>Entrega Límite</th>
+          <th>Peso</th>
+          <th>Matriz de Entregas</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in tareas_data %}
+          <tr>
+            <td>
+              <strong><a href="{% url 'docente-tarea-detalle' item.tarea.pk %}" style="color: #002855; text-decoration: none;">{{ item.tarea.titulo }}</a></strong>
+              <small class="table-subtitle" style="display: block; color: #64748b;">{{ item.tarea.materia.nombre }}</small>
+            </td>
+            <td><span style="font-weight: 600; color: #1e293b;">{{ item.tarea.curso|format_course_name }}</span></td>
+            <td>
+              <span style="font-size: 0.88rem;">{{ item.tarea.fecha_entrega|date:"d/m/Y H:i" }}</span>
+            </td>
+            <td><span style="font-weight: 600; color: #2563eb;">{{ item.tarea.peso_porcentual }}%</span></td>
+            <td>
+              <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <span class="status-pill" style="background: #ecfdf5; color: #047857; font-weight: 600;" title="Entregadas">{{ item.entregados }} entregada{% if item.entregados != 1 %}s{% endif %}</span>
+                <span class="status-pill" style="background: #fef2f2; color: #b91c1c; font-weight: 600;" title="Pendientes">{{ item.pendientes }} pendiente{% if item.pendientes != 1 %}s{% endif %}</span>
+              </div>
+              <small style="color: #64748b; font-size: 0.78rem;">{{ item.calificados }} / {{ item.total_alumnos }} calificados</small>
+            </td>
+            <td>
+              {% if item.tarea.activo %}
+                <span class="status-pill status-live">Activa</span>
+              {% else %}
+                <span class="status-pill status-draft">Inactiva</span>
+              {% endif %}
+            </td>
+            <td class="table-actions">
+              <a class="button button-small button-primary" href="{% url 'docente-tarea-detalle' item.tarea.pk %}" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Matriz</a>
+              <a class="text-action" href="{% url 'docente-tarea-edit' item.tarea.pk %}">Editar</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="empty-state" style="padding: 2.5rem; text-align: center; color: #64748b;">
+              No tienes tareas registradas con los filtros seleccionados.<br><br>
+              <a href="{% url 'docente-tarea-create' %}" class="button button-primary">Crear tu primera tarea</a>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+

@@ -1,5 +1,5 @@
 {% extends "admin/base_site.html" %}
-{% load i18n static log %}
+{% load i18n static log evaluaciones_tags %}
 
 {% block extrastyle %}
   {{ block.super }}
@@ -121,6 +121,29 @@
                       <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path>
                       <circle cx="12" cy="7" r="4"></circle>
                     </svg>
+                  {% elif model.object_name == "Tarea" %}
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                      <polyline points="14 2 14 8 20 8"></polyline>
+                      <line x1="16" y1="13" x2="8" y2="13"></line>
+                      <line x1="16" y1="17" x2="8" y2="17"></line>
+                      <polyline points="10 9 9 9 8 9"></polyline>
+                    </svg>
+                  {% elif model.object_name == "EntregaTarea" %}
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="17 8 12 3 7 8"></polyline>
+                      <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                  {% elif model.object_name == "InsumoCalificacion" %}
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M12 20h9"></path>
+                      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                    </svg>
+                  {% elif model.object_name == "RegistroCalificacion" %}
+                    <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
                   {% else %}
                     <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                       <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
@@ -153,6 +176,14 @@
                       Usuarios del sistema y roles
                     {% elif model.object_name == "Incident" %}
                       Auditoría y señales de proctoring
+                    {% elif model.object_name == "Tarea" %}
+                      Tareas asignadas a cursos y materias
+                    {% elif model.object_name == "EntregaTarea" %}
+                      Control de entregas y retroalimentación de tareas
+                    {% elif model.object_name == "InsumoCalificacion" %}
+                      Insumos académicos y ponderaciones parciales
+                    {% elif model.object_name == "RegistroCalificacion" %}
+                      Registro oficial de notas institucionales
                     {% else %}
                       Administración de {{ model.name|lower }}
                     {% endif %}
@@ -213,7 +244,7 @@
           {% else %}
             <ul class="activity-items-list" id="activity-log-list">
               {% for entry in admin_log %}
-                <li class="activity-item-row" data-search-term="{{ entry.object_repr|lower }} {{ entry.content_type.name|lower }}">
+                <li class="activity-item-row" data-search-term="{{ entry.object_repr|format_action_repr|lower }} {{ entry.content_type.name|lower }}">
                   <div class="activity-bullet-icon {% if entry.is_addition %}bullet-addition{% elif entry.is_change %}bullet-change{% else %}bullet-deletion{% endif %}">
                     {% if entry.is_addition %}
                       <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -235,9 +266,9 @@
                   <div class="activity-details">
                     <span class="activity-item-target">
                       {% if entry.is_deletion or not entry.get_admin_url %}
-                        {{ entry.object_repr }}
+                        {{ entry.object_repr|format_action_repr }}
                       {% else %}
-                        <a href="{{ entry.get_admin_url }}">{{ entry.object_repr }}</a>
+                        <a href="{{ entry.get_admin_url }}">{{ entry.object_repr|format_action_repr }}</a>
                       {% endif %}
                     </span>
                     <span class="activity-item-meta">

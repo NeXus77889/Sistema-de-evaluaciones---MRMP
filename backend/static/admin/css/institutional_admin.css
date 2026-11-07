@@ -453,6 +453,10 @@ body {
 .theme-attempt { background: #FEF3C7; color: #B45309; }
 .theme-ticketatencion { background: #FEF2F2; color: #DC2626; }
 .theme-user { background: #F3E8FF; color: #9333EA; }
+.theme-tarea { background: #EEF2FF; color: #4F46E5; }
+.theme-entregatarea { background: #ECFDF5; color: #10B981; }
+.theme-insumocalificacion { background: #F0FDF4; color: #16A34A; }
+.theme-registrocalificacion { background: #F8FAFC; color: #0284C7; }
 
 .card-text-container {
   display: flex;

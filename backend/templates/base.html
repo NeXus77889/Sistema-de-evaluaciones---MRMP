@@ -27,7 +27,14 @@
         <a class="nav-link{% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'administracion' %} is-active{% endif %}" href="{% if request.user.rol == 'ADMIN' %}{% url 'administracion' %}{% else %}{% url 'dashboard' %}{% endif %}">Panel general</a>
         {% if request.user.rol == 'DOCENTE' %}
           <a class="nav-link{% if request.resolver_match.url_name == 'exam-create' %} is-active{% endif %}" href="{% url 'exam-create' %}">Nueva evaluación</a>
+          <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-tareas-list' %}">Gestión de Tareas</a>
+          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-calificaciones-matrix' %}">Calificaciones (Runachay)</a>
+        {% elif request.user.rol == 'ESTUDIANTE' %}
+          <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'estudiante-tareas-list' %}">Mis Tareas</a>
+          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'estudiante-calificaciones-boletin' %}">Mis Calificaciones</a>
         {% elif request.user.rol == 'ADMIN' %}
+          <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-tareas-list' %}">Gestión de Tareas</a>
+          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-calificaciones-matrix' %}">Calificaciones (Runachay)</a>
           <a class="nav-link" href="/admin/">Django Admin</a>
         {% endif %}
       </nav>

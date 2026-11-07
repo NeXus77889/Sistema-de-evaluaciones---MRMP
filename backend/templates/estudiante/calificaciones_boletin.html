@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% load evaluaciones_tags %}
+
+{% block title %}Boletín de Calificaciones Oficial — UEPMRMP{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Portal del Estudiante · Calificaciones Institucionales</span>
+    <h1>Boletín Oficial de Calificaciones</h1>
+    <p>Reporte oficial de insumos pedagógicos y evaluaciones parciales (Estilo Runachay).</p>
+  </div>
+  <button type="button" class="button button-outline" onclick="window.print()">
+    Imprimir / Guardar PDF
+  </button>
+</div>
+
+<div class="boletin-container" style="background: #ffffff; border: 1px solid #cbd5e1; border-radius: 1rem; padding: 2.5rem; max-width: 1000px; margin: 0 auto; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+  <!-- Encabezado Institucional -->
+  <header style="border-bottom: 2px solid #002855; padding-bottom: 1.5rem; margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+    <div>
+      <h2 style="color: #002855; font-size: 1.35rem; margin: 0 0 0.25rem 0; font-weight: 800; text-transform: uppercase;">
+        Unidad Educativa Particular Monseñor Roberto María del Pozo
+      </h2>
+      <span style="color: #2563eb; font-weight: 600; font-size: 0.95rem;">Boletín Quimestral / Parcial de Rendimiento Académico</span>
+      <p style="color: #64748b; font-size: 0.85rem; margin: 0.25rem 0 0 0;">Fecha de emisión: {{ fecha_actual|date:"d/m/Y H:i" }}</p>
+    </div>
+  </header>
+
+  <!-- Datos del Estudiante -->
+  <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 2rem; display: grid; grid-template-columns: 2fr 1fr; gap: 1rem;">
+    <div>
+      <span style="font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase;">Estudiante:</span>
+      <strong style="display: block; font-size: 1.15rem; color: #002855;">{{ user.get_full_name|default:user.username }}</strong>
+      <span style="color: #64748b; font-size: 0.9rem;">Cédula: <code>{{ user.identification|default:"—" }}</code> &nbsp;|&nbsp; Correo: {{ user.email }}</span>
+    </div>
+    <div>
+      <span style="font-size: 0.8rem; font-weight: 700; color: #475569; text-transform: uppercase;">Curso / Nivel:</span>
+      <strong style="display: block; font-size: 1.05rem; color: #1e293b;">
+        {% for c in cursos %}
+          {{ c|format_course_name }}{% if not forloop.last %}, {% endif %}
+        {% empty %}
+          Sin curso asignado
+        {% endfor %}
+      </strong>
+    </div>
+  </div>
+
+  <!-- Sábana por Materias -->
+  {% if materias_boletin %}
+    {% for mb in materias_boletin %}
+      <div style="margin-bottom: 2rem; border: 1px solid #e2e8f0; border-radius: 0.75rem; overflow: hidden;">
+        <div style="background: #002855; color: #ffffff; padding: 0.85rem 1.25rem; display: flex; justify-content: space-between; align-items: center;">
+          <h3 style="margin: 0; font-size: 1.05rem; font-weight: 700;">{{ mb.materia.nombre }}</h3>
+          <span style="font-size: 0.85rem; opacity: 0.9;">{{ mb.curso|format_course_name }}</span>
+        </div>
+
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="background: #f1f5f9; border-bottom: 1px solid #cbd5e1; font-size: 0.85rem; color: #475569;">
+              <th style="padding: 0.75rem 1rem; text-align: left;">Insumo / Componente</th>
+              <th style="padding: 0.75rem 1rem; text-align: left;">Tipo</th>
+              <th style="padding: 0.75rem 1rem; text-align: center; width: 120px;">Ponderación</th>
+              <th style="padding: 0.75rem 1rem; text-align: center; width: 140px;">Nota (10.00)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ins in mb.insumos %}
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 0.75rem 1rem; font-weight: 600; color: #1e293b;">{{ ins.nombre }}</td>
+                <td style="padding: 0.75rem 1rem; color: #64748b; font-size: 0.9rem;">{{ ins.tipo }}</td>
+                <td style="padding: 0.75rem 1rem; text-align: center; color: #2563eb; font-weight: 600;">{{ ins.ponderacion }}%</td>
+                <td style="padding: 0.75rem 1rem; text-align: center;">
+                  {% if ins.nota is not None %}
+                    <strong style="font-size: 1.05rem; {% if ins.nota >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                      {{ ins.nota }}
+                    </strong>
+                  {% else %}
+                    <span style="color: #94a3b8; font-style: italic;">Pendiente</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+            <!-- Fila de Promedio Ponderado -->
+            <tr style="background: #f8fafc; font-weight: 700; border-top: 2px solid #cbd5e1;">
+              <td colspan="3" style="padding: 0.85rem 1rem; text-align: right; color: #002855;">
+                PROMEDIO PONDERADO DEL PARCIAL:
+              </td>
+              <td style="padding: 0.85rem 1rem; text-align: center;">
+                {% if mb.promedio is not None %}
+                  <strong style="font-size: 1.2rem; {% if mb.promedio >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                    {{ mb.promedio }}
+                  </strong>
+                {% else %}
+                  <span style="color: #94a3b8;">—</span>
+                {% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        {% if mb.estado_cualitativo %}
+          <div style="padding: 0.65rem 1rem; background: #faf5ff; border-top: 1px solid #e9d5ff; font-size: 0.85rem; color: #6b21a8; font-weight: 600;">
+            Escala Cualitativa Ministerial: {{ mb.estado_cualitativo }}
+          </div>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% else %}
+    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 0.75rem; padding: 2rem; text-align: center; color: #92400e;">
+      <strong>Aún no hay calificaciones publicadas oficialmente para tus materias.</strong>
+      <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">Tus docentes se encuentran revisando y ponderando los insumos del periodo actual.</p>
+    </div>
+  {% endif %}
+
+  <!-- Escala institucional de referencia -->
+  <footer style="margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0; font-size: 0.8rem; color: #64748b; line-height: 1.5;">
+    <strong style="color: #1e293b; display: block; margin-bottom: 0.35rem;">Escala de Calificaciones (Ministerio de Educación / Runachay):</strong>
+    DAR: Domina los aprendizajes requeridos (9.00 - 10.00) &nbsp;|&nbsp;
+    AAR: Alcanza los aprendizajes requeridos (7.00 - 8.99) &nbsp;|&nbsp;
+    PAAR: Próximo a alcanzar (4.01 - 6.99) &nbsp;|&nbsp;
+    NAAR: No alcanza los aprendizajes requeridos (&le; 4.00)
+  </footer>
+</div>
+
+<style>
+  @media print {
+    body { background: #ffffff !important; }
+    .side-nav, .topbar, .page-heading, button, .sidebar-bottom { display: none !important; }
+    .boletin-container { border: none !important; box-shadow: none !important; padding: 0 !important; width: 100% !important; max-width: 100% !important; }
+  }
+</style>
+{% endblock %}
+

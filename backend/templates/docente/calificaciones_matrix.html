@@ -1,0 +1,232 @@
+{% extends "base.html" %}
+{% load evaluaciones_tags %}
+
+{% block title %}Sábana de Calificaciones (Runachay) — Panel Docente{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Sistema Institucional de Calificaciones · Estilo Runachay</span>
+    <h1>Sábana de Notas por Curso</h1>
+    <p>Registro y publicación de insumos académicos (0.00 - 10.00) y ponderaciones del parcial.</p>
+  </div>
+  {% if selected_curso and selected_materia %}
+    <div style="display: flex; gap: 0.5rem; align-items: center;">
+      {% if todos_publicados %}
+        <form method="post" style="display: inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="unpublish_all">
+          <button type="submit" class="button button-outline" style="color: #b45309; border-color: #fde68a; background: #fffbeb;" title="Ocultar calificaciones a los estudiantes">
+            Modo Borrador (Ocultar)
+          </button>
+        </form>
+      {% else %}
+        <form method="post" style="display: inline;">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="publish_all">
+          <button type="submit" class="button button-primary" style="background: #059669; border-color: #059669;" title="Publicar notas oficialmente para estudiantes">
+            Publicar Calificaciones Oficiales
+          </button>
+        </form>
+      {% endif %}
+      <button type="button" class="button button-outline" onclick="openNewInsumoModal()">+ Insumo</button>
+    </div>
+  {% endif %}
+</div>
+
+<!-- Selector de Curso y Materia -->
+<section class="data-section" style="margin-bottom: 1.5rem; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem;">
+  <form method="get" style="display: flex; gap: 1.25rem; align-items: flex-end; flex-wrap: wrap;">
+    <label style="flex: 1; min-width: 250px;">
+      <span style="display: block; font-size: 0.82rem; font-weight: 700; color: #002855; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em;">1. Selecciona el Curso:</span>
+      <select name="curso" onchange="this.form.submit()" style="width: 100%; padding: 0.65rem; border-radius: 0.5rem; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b;">
+        <option value="">-- Elige un curso asignado --</option>
+        {% for c in cursos_asignados %}
+          <option value="{{ c.pk }}" {% if selected_curso and selected_curso.pk == c.pk %}selected{% endif %}>{{ c|format_course_name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    {% if selected_curso %}
+      <label style="flex: 1; min-width: 250px;">
+        <span style="display: block; font-size: 0.82rem; font-weight: 700; color: #002855; margin-bottom: 0.35rem; text-transform: uppercase; letter-spacing: 0.04em;">2. Selecciona la Materia:</span>
+        <select name="materia" onchange="this.form.submit()" style="width: 100%; padding: 0.65rem; border-radius: 0.5rem; border: 1px solid #cbd5e1; font-weight: 600; color: #1e293b;">
+          <option value="">-- Elige la materia a calificar --</option>
+          {% for m in materias_asignadas %}
+            <option value="{{ m.pk }}" {% if selected_materia and selected_materia.pk == m.pk %}selected{% endif %}>{{ m.nombre }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    {% endif %}
+  </form>
+</section>
+
+{% if selected_curso and selected_materia %}
+  <!-- Indicadores de estado de publicación -->
+  <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center; background: {% if todos_publicados %}#ecfdf5{% else %}#fffbeb{% endif %}; border-left: 4px solid {% if todos_publicados %}#10b981{% else %}#f59e0b{% endif %}; padding: 0.75rem 1.25rem; border-radius: 0.5rem;">
+    <div>
+      <strong style="color: {% if todos_publicados %}#065f46{% else %}#92400e{% endif %};">
+        {% if todos_publicados %}
+          Estado: Calificaciones PUBLICADAS
+        {% else %}
+          Estado: Modo BORRADOR (Solo visible para el docente)
+        {% endif %}
+      </strong>
+      <span style="font-size: 0.85rem; color: {% if todos_publicados %}#047857{% else %}#b45309{% endif %}; display: block;">
+        {% if todos_publicados %}
+          Los estudiantes ya pueden visualizar su boletín actualizado con estas notas.
+        {% else %}
+          Los estudiantes NO pueden ver estas notas hasta que presiones "Publicar Calificaciones Oficiales".
+        {% endif %}
+      </span>
+    </div>
+    <span class="status-pill {% if todos_publicados %}status-live{% else %}status-draft{% endif %}">
+      {% if todos_publicados %}Visible{% else %}Oculto{% endif %}
+    </span>
+  </div>
+
+  <!-- Sábana de Notas Interactiva -->
+  <section class="data-section" style="background: #ffffff; border-radius: 1rem; border: 1px solid #e2e8f0; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.03);">
+    <form method="post" id="gradesMatrixForm">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_grades">
+
+      <div class="section-heading" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center;">
+        <div>
+          <span class="eyebrow">{{ selected_materia.nombre }}</span>
+          <h2 style="margin: 0; font-size: 1.25rem;">Nómina y Sábana de Notas: {{ selected_curso|format_course_name }}</h2>
+        </div>
+        <button type="submit" class="button button-primary">Guardar Sábana de Notas</button>
+      </div>
+
+      <div class="table-wrap" style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; min-width: 800px;">
+          <thead>
+            <tr style="background: #f8fafc; border-bottom: 2px solid #cbd5e1;">
+              <th style="padding: 0.75rem 1rem; text-align: left; width: 40px;">#</th>
+              <th style="padding: 0.75rem 1rem; text-align: left; min-width: 220px;">Estudiante</th>
+              {% for ins in insumos %}
+                <th style="padding: 0.75rem 0.75rem; text-align: center; min-width: 130px; background: {% cycle '#f1f5f9' '#e2e8f0' %};">
+                  <div style="font-size: 0.85rem; font-weight: 700; color: #002855;">{{ ins.nombre }}</div>
+                  <small style="color: #2563eb; font-weight: 600; display: block;">Peso: {{ ins.ponderacion }}%</small>
+                </th>
+              {% endfor %}
+              <th style="padding: 0.75rem 1rem; text-align: center; width: 120px; background: #eff6ff; color: #1e40af;">
+                Promedio Ponderado
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in matriz_estudiantes %}
+              <tr style="border-bottom: 1px solid #f1f5f9;">
+                <td style="padding: 0.65rem 1rem; color: #64748b; font-size: 0.85rem;">{{ forloop.counter }}</td>
+                <td style="padding: 0.65rem 1rem;">
+                  <strong style="color: #0f172a; display: block;">{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}</strong>
+                  <small style="color: #64748b; font-family: monospace;">{{ item.estudiante.identification|default:item.estudiante.username }}</small>
+                </td>
+
+                {% for ni in item.notas_insumos %}
+                  <td style="padding: 0.5rem; text-align: center;">
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.00"
+                      max="10.00"
+                      name="grade_{{ ni.insumo.pk }}_{{ item.estudiante.pk }}"
+                      value="{{ ni.nota|default_if_none:'' }}"
+                      class="grade-input"
+                      placeholder="—"
+                      style="width: 85px; text-align: center; padding: 0.45rem 0.25rem; font-weight: 700; font-size: 0.95rem; border: 1px solid #cbd5e1; border-radius: 0.375rem; background: #ffffff;"
+                    >
+                  </td>
+                {% endfor %}
+
+                <td style="padding: 0.65rem 1rem; text-align: center; background: #faf5ff;">
+                  {% if item.promedio is not None %}
+                    <strong style="font-size: 1.05rem; {% if item.promedio >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                      {{ item.promedio }}
+                    </strong>
+                  {% else %}
+                    <span style="color: #94a3b8; font-size: 0.9rem;">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% empty %}
+              <tr>
+                <td colspan="{{ insumos|length|add:3 }}" class="empty-state" style="padding: 2.5rem; text-align: center; color: #64748b;">
+                  No hay estudiantes registrados en este curso.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <div style="padding: 1.25rem 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 1rem;">
+        <button type="submit" class="button button-primary" style="padding: 0.65rem 1.5rem;">Guardar Sábana de Notas</button>
+      </div>
+    </form>
+  </section>
+{% else %}
+  <div class="empty-state" style="background: #ffffff; border: 2px dashed #cbd5e1; border-radius: 1rem; padding: 3rem; text-align: center;">
+    <h3 style="color: #002855; margin-bottom: 0.5rem;">Por favor, selecciona un Curso y una Materia arriba</h3>
+    <p style="color: #64748b;">Para desplegar la sábana de calificaciones institucional y gestionar los insumos pedagógicos de tus alumnos.</p>
+  </div>
+{% endif %}
+
+<!-- Modal para Crear Nuevo Insumo -->
+<div id="newInsumoModal" style="display: none; position: fixed; inset: 0; background: rgba(10,35,66,0.6); z-index: 9999; align-items: center; justify-content: center;">
+  <div style="background: #ffffff; border-radius: 1rem; width: 100%; max-width: 480px; padding: 2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
+    <h3 style="color: #002855; margin-top: 0; margin-bottom: 0.5rem; font-size: 1.25rem;">Crear Insumo Académico</h3>
+    <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 1.5rem;">Añade un nuevo insumo a la sábana de calificaciones institucional.</p>
+
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="create_insumo">
+
+      <div style="margin-bottom: 1.2rem;">
+        <label style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.35rem;">Nombre del Insumo *</label>
+        <input type="text" name="nombre" required placeholder="Ej: Insumo 3 - Taller Práctico" style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem;">
+      </div>
+
+      <div style="margin-bottom: 1.2rem;">
+        <label style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.35rem;">Tipo de Insumo *</label>
+        <select name="tipo" style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem;">
+          <option value="INSUMO_1">Insumo 1 (Tareas / Actividades individuales)</option>
+          <option value="INSUMO_2">Insumo 2 (Lecciones / Proyectos grupales)</option>
+          <option value="EVALUACION">Evaluación Parcial</option>
+        </select>
+      </div>
+
+      <div style="margin-bottom: 1.2rem;">
+        <label style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.35rem;">Ponderación Porcentual (%) *</label>
+        <input type="number" step="0.01" min="0.01" max="100" name="ponderacion" value="35.00" required style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem;">
+      </div>
+
+      <div style="margin-bottom: 1.5rem;">
+        <label style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.35rem;">Periodo Lectivo</label>
+        <input type="text" name="periodo" value="Primer Quimestre - Parcial 1" style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem;">
+      </div>
+
+      <div style="display: flex; justify-content: flex-end; gap: 1rem;">
+        <button type="button" class="button button-outline" onclick="closeNewInsumoModal()">Cancelar</button>
+        <button type="submit" class="button button-primary">Crear Insumo</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openNewInsumoModal() {
+    document.getElementById("newInsumoModal").style.display = "flex";
+  }
+  function closeNewInsumoModal() {
+    document.getElementById("newInsumoModal").style.display = "none";
+  }
+  window.addEventListener("click", function(e) {
+    const modal = document.getElementById("newInsumoModal");
+    if (e.target === modal) closeNewInsumoModal();
+  });
+</script>
+{% endblock %}
+

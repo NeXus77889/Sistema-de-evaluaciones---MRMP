@@ -23,7 +23,16 @@ from apps.usuarios.services import (
 )
 
 # pyrefly: ignore[missing-import]
-from apps.evaluaciones.models import AsignacionDocente, Curso, Exam, Materia
+from apps.evaluaciones.models import (
+    AsignacionDocente,
+    Curso,
+    EntregaTarea,
+    Exam,
+    InsumoCalificacion,
+    Materia,
+    RegistroCalificacion,
+    Tarea,
+)
 from apps.evaluaciones.widgets import GroupedCourseCheckboxSelectMultiple
 
 admin.site.site_header = "Administración Sistema Proctoring — UEPMRMP"
@@ -419,3 +428,39 @@ class ExamAdmin(admin.ModelAdmin):
         if db_field.name == "cursos" and field is not None:
             field.choices = grouped_course_choices(field.queryset)
         return field
+
+
+@admin.register(Tarea)
+class TareaAdmin(admin.ModelAdmin):
+    list_display = ("titulo", "curso_display", "materia", "docente", "fecha_entrega", "peso_porcentual", "activo")
+    list_filter = ("curso", "materia", "activo")
+    search_fields = ("titulo", "descripcion", "docente__username", "docente__first_name", "docente__last_name")
+
+    @admin.display(description="Curso", ordering="curso__nombre")
+    def curso_display(self, obj):
+        return str(obj.curso)
+
+
+@admin.register(EntregaTarea)
+class EntregaTareaAdmin(admin.ModelAdmin):
+    list_display = ("tarea", "estudiante", "estado", "calificacion", "fecha_subida", "fecha_calificacion")
+    list_filter = ("estado", "tarea__curso", "tarea__materia")
+    search_fields = ("tarea__titulo", "estudiante__username", "estudiante__first_name", "estudiante__last_name")
+
+
+@admin.register(InsumoCalificacion)
+class InsumoCalificacionAdmin(admin.ModelAdmin):
+    list_display = ("nombre", "tipo", "periodo", "curso_display", "materia", "docente", "ponderacion", "publicado")
+    list_filter = ("tipo", "periodo", "publicado", "curso", "materia")
+    search_fields = ("nombre", "docente__username", "docente__first_name", "docente__last_name")
+
+    @admin.display(description="Curso", ordering="curso__nombre")
+    def curso_display(self, obj):
+        return str(obj.curso)
+
+
+@admin.register(RegistroCalificacion)
+class RegistroCalificacionAdmin(admin.ModelAdmin):
+    list_display = ("estudiante", "insumo", "nota", "fecha_registro")
+    list_filter = ("insumo__tipo", "insumo__periodo", "insumo__curso")
+    search_fields = ("estudiante__username", "estudiante__first_name", "estudiante__last_name", "insumo__nombre")

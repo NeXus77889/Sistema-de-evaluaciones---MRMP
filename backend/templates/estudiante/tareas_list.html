@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% load evaluaciones_tags %}
+
+{% block title %}Mis Tareas — Portal del Estudiante{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Portal del Estudiante</span>
+    <h1>Mis Tareas Asignadas</h1>
+    <p>Consulta las tareas activas de tus asignaturas y sube tus trabajos académicos.</p>
+  </div>
+</div>
+
+<section class="data-section">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Actividades</span>
+      <h2>Listado de Tareas</h2>
+    </div>
+    <span class="section-count">{{ tareas_data|length }} tarea{% if tareas_data|length != 1 %}s{% endif %}</span>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Tarea / Asignatura</th>
+          <th>Docente</th>
+          <th>Fecha Límite</th>
+          <th>Peso</th>
+          <th>Estado de Entrega</th>
+          <th>Calificación</th>
+          <th>Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in tareas_data %}
+          <tr>
+            <td>
+              <strong style="color: #002855;">{{ item.tarea.titulo }}</strong>
+              <small class="table-subtitle" style="display: block; color: #64748b;">{{ item.tarea.materia.nombre }} · {{ item.tarea.curso|format_course_name }}</small>
+            </td>
+            <td>{{ item.tarea.docente.get_full_name|default:item.tarea.docente.username }}</td>
+            <td>
+              <span {% if item.is_vencida and not item.entrega %}style="color: #dc2626; font-weight: 600;"{% endif %}>
+                {{ item.tarea.fecha_entrega|date:"d/m/Y H:i" }}
+              </span>
+            </td>
+            <td><span style="font-weight: 600; color: #2563eb;">{{ item.tarea.peso_porcentual }}%</span></td>
+            <td>
+              {% if item.estado == "ENTREGADO" %}
+                <span class="status-pill" style="background: #ecfdf5; color: #047857; font-weight: 700; border: 1px solid #a7f3d0;">
+                  ENTREGADO
+                </span>
+              {% elif item.estado == "ATRASADO" %}
+                <span class="status-pill" style="background: #fffbeb; color: #b45309; font-weight: 700; border: 1px solid #fde68a;">
+                  ATRASADO
+                </span>
+              {% else %}
+                <span class="status-pill" style="background: #fef2f2; color: #b91c1c; font-weight: 700; border: 1px solid #fecaca;">
+                  PENDIENTE
+                </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if item.entrega and item.entrega.calificacion is not None %}
+                <strong style="font-size: 1.05rem; {% if item.entrega.calificacion >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                  {{ item.entrega.calificacion }} / 10.00
+                </strong>
+              {% else %}
+                <span style="color: #94a3b8; font-style: italic;">Sin calificar</span>
+              {% endif %}
+            </td>
+            <td>
+              <a class="button button-small {% if item.entrega %}button-outline{% else %}button-primary{% endif %}" href="{% url 'estudiante-tarea-entrega' item.tarea.pk %}">
+                {% if item.entrega %}Ver / Reenviar{% else %}Entregar Trabajo{% endif %}
+              </a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="7" class="empty-state" style="padding: 2.5rem; text-align: center; color: #64748b;">
+              No tienes tareas pendientes asignadas a tus cursos actualmente.
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endblock %}
+
