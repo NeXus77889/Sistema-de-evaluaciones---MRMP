@@ -1,0 +1,96 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}Evaluaciones{% endblock %} · Aula</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=8">
+  {% block extra_head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  {% if request.user.is_authenticated %}
+  <div class="app-shell">
+    <aside class="sidebar">
+      <a class="brand" href="{% url 'dashboard' %}">
+        <div class="brand-logo-container">
+          <img class="brand-logo" src="{% static 'img/uepmrmp-logo.svg' %}" alt="UEPMRMP">
+        </div>
+        <div class="brand-text-block">
+          <span class="brand-title">UEPMRMP</span>
+          <span class="brand-subtitle">Evaluaciones & Proctoring</span>
+        </div>
+      </a>
+      <div class="sidebar-label">Espacio de trabajo</div>
+      <nav class="side-nav" aria-label="Navegación principal">
+        <a class="nav-link{% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'administracion' %} is-active{% endif %}" href="{% if request.user.rol == 'ADMIN' %}{% url 'administracion' %}{% else %}{% url 'dashboard' %}{% endif %}">Panel general</a>
+        {% if request.user.rol == 'DOCENTE' %}
+          <a class="nav-link{% if request.resolver_match.url_name == 'exam-create' %} is-active{% endif %}" href="{% url 'exam-create' %}">Nueva evaluación</a>
+        {% elif request.user.rol == 'ADMIN' %}
+          <a class="nav-link" href="/admin/">Django Admin</a>
+        {% endif %}
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="profile-chip"><span class="avatar">{{ request.user.first_name|default:request.user.username|slice:":1"|upper }}</span><span><strong>{{ request.user.get_full_name|default:request.user.username }}</strong><small>{{ request.user.get_rol_display }}</small></span></div>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}<button class="signout" type="submit">Cerrar sesión</button></form>
+      </div>
+    </aside>
+    <main class="main-area">
+      <header class="topbar">
+        <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-expanded="false">Menú</button>
+        <div class="topbar-institutional-container">
+          <div class="topbar-logo-wrap">
+            <img class="topbar-logo-img" src="{% static 'img/uepmrmp-logo.svg' %}" alt="Logo UEPMRMP">
+          </div>
+          <div class="topbar-institution-info">
+            <span class="topbar-inst-name">Unidad Educativa Particular Monseñor Roberto María del Pozo</span>
+            <span class="topbar-inst-system">Sistema de Evaluaciones y Proctoring</span>
+          </div>
+        </div>
+        <span class="topbar-date">{{ request.user.email }}</span>
+      </header>
+      <div class="page-content">
+        {% if messages %}<div class="messages">{% for message in messages %}<div class="message {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}</div>{% endif %}
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+  {% else %}
+    {% if messages %}<div class="public-messages">{% for message in messages %}<div class="message {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}</div>{% endif %}
+    {% block public_content %}{% endblock %}
+  {% endif %}
+  <dialog id="support-ticket-dialog" class="support-ticket-dialog" aria-labelledby="support-ticket-title">
+    <form id="support-ticket-form" class="support-ticket-form">
+      <button type="button" class="support-ticket-close" data-ticket-close aria-label="Cerrar">Cerrar</button>
+      <span class="eyebrow">Atención de Secretaría</span>
+      <h2 id="support-ticket-title">Solicitar ayuda</h2>
+      <p id="support-ticket-description">Generaremos un código para presentar en Secretaría.</p>
+      <label id="support-ticket-email-wrap" for="support-ticket-email" hidden>
+        Correo registrado
+        <input id="support-ticket-email" type="email" autocomplete="email">
+      </label>
+      <p id="support-ticket-error" class="support-ticket-error" role="alert" hidden></p>
+      <div class="support-ticket-actions">
+        <button class="button button-primary" type="submit">Generar código</button>
+        <button class="button button-outline" type="button" data-ticket-close>Cancelar</button>
+      </div>
+    </form>
+    <section id="support-ticket-result" class="support-ticket-result" hidden>
+      <span class="eyebrow">Presente este código</span>
+      <h2>Atención requerida</h2>
+      <p>Acérquese a Secretaría y presente este código de atención:</p>
+      <output id="support-ticket-code"></output>
+      <p id="support-ticket-result-error" class="support-ticket-error" role="alert" hidden></p>
+      <div class="support-ticket-actions">
+        <button class="button button-primary" type="button" data-ticket-copy>Copiar código</button>
+        <button class="button button-outline" type="button" data-ticket-print>Imprimir ticket</button>
+        <button class="button button-outline" type="button" data-ticket-close>Cerrar</button>
+      </div>
+    </section>
+  </dialog>
+  <script src="{% static 'js/support_ticket.js' %}" defer></script>
+  <script src="{% static 'js/sidebar_toggle.js' %}?v=2" defer></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Iniciar sesión{% endblock %}
+{% block body_class %}login-page{% endblock %}
+
+{% block public_content %}
+<main class="login-layout">
+  <section class="login-panel">
+    <a class="brand-login-brand" href="{% url 'login' %}">
+      <img class="brand-logo" src="{% static 'img/uepmrmp-logo.svg' %}" alt="UEPMRMP">
+      <span>Aula<span class="brand-subtitle">Evaluaciones</span></span>
+    </a>
+    <div class="login-copy">
+      <span class="eyebrow">Plataforma académica</span>
+      <h1>Tu espacio de<br>evaluación.</h1>
+      <p>Accede a tus cursos, evaluaciones e informes desde un solo lugar.</p>
+    </div>
+
+    <form method="post" class="form-stack">
+      {% csrf_token %}
+      {% if form.non_field_errors %}
+      <div class="form-errors">{{ form.non_field_errors }}</div>
+      {% endif %}
+
+      <label for="id_username">Usuario</label>
+      {{ form.username }}
+      {{ form.username.errors }}
+
+      <label for="id_password">Contraseña</label>
+      {{ form.password }}
+      {{ form.password.errors }}
+
+      {% if next %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {% endif %}
+
+      <button class="button button-primary button-wide" type="submit">Ingresar</button>
+    </form>
+
+    <div class="login-support-actions" aria-label="Ayuda de acceso">
+      <button type="button" class="text-action js-support-ticket" data-ticket-kind="PASS">¿Olvidaste tu
+        contraseña?</button>
+      <button type="button" class="text-action js-support-ticket" data-ticket-kind="USER">¿Olvidaste tu
+        usuario/cédula?</button>
+    </div>
+
+    <p class="login-footnote">La cuenta es administrada por tu institución.</p>
+  </section>
+
+  <aside class="login-aside">
+    <div class="aside-message">
+      <p>Aprender requiere<br><em>espacio para pensar.</em></p>
+      <small>Evaluaciones · Aula</small>
+    </div>
+  </aside>
+</main>
+{% endblock %}

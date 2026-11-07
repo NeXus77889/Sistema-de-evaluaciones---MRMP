@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">Diseño de prueba</span><h1>{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}</h1><p>Define la disponibilidad, asignación y preguntas.</p></div><a class="button button-outline" href="{% url 'dashboard' %}">Volver</a></div>
+<form method="post" id="exam-form" class="editor-form">{% csrf_token %}
+  {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
+  {% if form.assignment_notice %}<p class="assignment-notice" role="status">{{ form.assignment_notice }}</p>{% endif %}
+  <section class="form-section"><div class="section-heading"><div><span class="eyebrow">Configuración</span><h2>Detalles de la evaluación</h2></div></div><div class="form-grid">{{ form.as_p }}</div></section>
+  <section class="exam-preview" aria-live="polite" aria-label="Vista previa de la evaluación">
+    <div><span class="eyebrow">Vista previa</span><h2 id="preview-title">Nueva evaluación</h2></div>
+    <dl><div><dt>Materia</dt><dd id="preview-subject">Sin seleccionar</dd></div><div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div><div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div></dl>
+  </section>
+  <section class="form-section"><div class="section-heading"><div><span class="eyebrow">Contenido</span><h2>Preguntas</h2><p>Una respuesta correcta por pregunta.</p></div><button class="button button-outline" type="button" id="add-question">Agregar pregunta</button></div>
+    <div class="docx-import-tools"><label class="button button-outline" for="docx-file">Importar desde Word / Google Docs</label><input id="docx-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden><span id="docx-import-status" class="muted" aria-live="polite"></span></div>
+    <div id="question-list" class="question-list"></div><p id="question-error" class="inline-error" role="alert"></p></section>
+  <input type="hidden" name="questions_json" id="questions-json"><div class="form-actions"><a class="text-action" href="{% url 'dashboard' %}">Cancelar</a><button type="submit" class="button button-primary">Guardar evaluación</button></div>
+</form>
+{{ question_data|json_script:"initial-questions" }}
+<dialog id="docx-preview-dialog" class="docx-preview-dialog" data-preview-url="{% url 'exam-import-preview' %}">
+  <div class="docx-preview-heading"><div><span class="eyebrow">Vista previa</span><h2>Revisa las preguntas importadas</h2><p>Selecciona una respuesta correcta para cada pregunta antes de añadirlas.</p></div><button type="button" id="close-docx-preview" class="support-ticket-close" aria-label="Cerrar vista previa">Cerrar</button></div>
+  <div id="docx-preview-list" class="docx-preview-list"></div>
+  <p id="docx-preview-error" class="inline-error" role="alert"></p>
+  <div class="docx-preview-actions"><button type="button" class="button button-outline" id="cancel-docx-preview">Cancelar</button><button type="button" class="button button-primary" id="use-imported-questions">Agregar preguntas al examen</button></div>
+</dialog>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/exam_builder.js' %}" defer></script><script src="{% static 'js/course_picker.js' %}" defer></script><script src="{% static 'js/exam_preview.js' %}" defer></script>{% endblock %}

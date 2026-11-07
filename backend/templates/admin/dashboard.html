@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Administración{% endblock %}
+{% block content %}
+<div class="page-heading"><div><span class="eyebrow">Administración</span><h1>Vista general</h1><p>Actividad y usuarios de la plataforma.</p></div><a class="button button-primary" href="/admin/">Administrar sistema</a></div>
+<section class="stat-grid" aria-label="Estadísticas generales">
+  <article class="stat-card"><span>Usuarios activos</span><strong>{{ user_count }}</strong><small>cuentas registradas</small></article>
+  <article class="stat-card"><span>Docentes</span><strong>{{ teacher_count }}</strong><small>con acceso activo</small></article>
+  <article class="stat-card"><span>Estudiantes</span><strong>{{ student_count }}</strong><small>con acceso activo</small></article>
+  <article class="stat-card stat-accent"><span>Evaluaciones</span><strong>{{ exam_count }}</strong><small>{{ attempt_count }} intentos · {{ incident_count }} señales</small></article>
+</section>
+<section class="data-section"><div class="section-heading"><div><span class="eyebrow">Evaluaciones</span><h2>Actividad por nivel educativo</h2></div></div>
+  {% for group in exam_groups %}<details class="level-group" open><summary>{{ group.label }} <span class="section-count">{{ group.items|length }}</span></summary><div class="table-wrap"><table><thead><tr><th>Evaluación</th><th>Materia</th><th>Docente</th><th>Estado</th></tr></thead><tbody>
+  {% for exam in group.items %}<tr><td><strong>{{ exam.title }}</strong></td><td>{{ exam.materia|default:"Sin materia" }}</td><td>{{ exam.teacher.get_full_name|default:exam.teacher.username }}</td><td><span class="status-pill {% if exam.published %}status-live{% else %}status-draft{% endif %}">{% if exam.published %}Publicada{% else %}Borrador{% endif %}</span></td></tr>{% endfor %}
+  </tbody></table></div></details>{% empty %}<p class="empty-state">Aún no hay evaluaciones registradas.</p>{% endfor %}
+</section>
+<section class="data-section filter-directory" data-filter-directory>
+  <div class="section-heading"><div><span class="eyebrow">Seguimiento</span><h2>Auditoría de incidencias</h2><p>Registro de eventos detectados durante las evaluaciones.</p></div></div>
+  <div class="filter-panel">
+    <div class="filter-panel-heading"><div><h3>Filtrar auditoría</h3><p>Nombre, cédula, curso y fecha</p></div><button class="button button-outline button-small filter-clear" type="button" data-filter-clear>Limpiar</button></div>
+    <div class="filter-fields">
+      <label class="filter-field"><span>Nombre</span><input type="search" data-filter-student placeholder="Nombre o cédula" autocomplete="off"></label>
+      <label class="filter-field"><span>Curso</span><select data-filter-course><option value="">Todos los cursos</option>{% for course in filter_courses %}<option value="{{ course.pk }}">{{ course }}</option>{% endfor %}<option value="none">Sin curso asociado</option></select></label>
+      <label class="filter-field"><span>Mes</span><input type="month" data-filter-month></label>
+      <label class="filter-field"><span>Desde</span><input type="date" data-filter-from></label>
+      <label class="filter-field"><span>Hasta</span><input type="date" data-filter-to></label>
+    </div>
+    <div class="filter-panel-footer"><span class="filter-count" data-filter-count aria-live="polite"></span></div>
+  </div>
+  <div class="table-wrap"><table><thead><tr><th>Evento</th><th>Estudiante</th><th>Curso</th><th>Evaluación</th><th>Fecha</th><th>Gravedad</th></tr></thead><tbody>
+  {% for incident in recent_incidents %}<tr data-filter-row data-student="{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username|lower }} {{ incident.attempt.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}"><td>{{ incident.get_kind_display }}</td><td>{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username }}<small class="table-subtitle">{{ incident.attempt.student.identification }}</small></td><td>{{ incident.course_name }}</td><td>{{ incident.attempt.exam.title }}</td><td>{{ incident.occurred_at|date:"d/m/Y H:i:s" }}</td><td><span class="status-pill severity-{{ incident.severity }}">{{ incident.get_severity_display }}</span></td></tr>
+  {% empty %}<tr data-filter-no-data><td colspan="6" class="empty-state">Aún no se han registrado incidencias.</td></tr>{% endfor %}
+  </tbody></table></div>
+  <p class="empty-state filter-empty" data-filter-empty hidden>No hay incidencias que coincidan con los filtros.</p>
+</section>
+<section class="data-section filter-directory ticket-directory" data-filter-directory>
+  <div class="section-heading"><div><span class="eyebrow">Secretaría</span><h2>Atención de tickets</h2><p>Tickets organizados por bloque educativo.</p></div><a class="text-action" href="/admin/core/ticketatencion/">Historial completo</a></div>
+  <form method="post" action="{% url 'ticket-attention' %}" class="ticket-attention-form">
+    {% csrf_token %}
+    <label for="ticket-code">Atender por código</label>
+    <input id="ticket-code" name="codigo" type="text" placeholder="SEC-PASS-0966504938" required autocomplete="off">
+    <button class="button button-primary" type="submit">Atender ticket</button>
+  </form>
+  <div class="filter-panel">
+    <div class="filter-panel-heading"><div><h3>Filtrar tickets</h3><p>Nombre, cédula, curso y fecha</p></div><button class="button button-outline button-small filter-clear" type="button" data-filter-clear>Limpiar</button></div>
+    <div class="filter-fields">
+      <label class="filter-field"><span>Nombre</span><input type="search" data-filter-student placeholder="Nombre o cédula" autocomplete="off"></label>
+      <label class="filter-field"><span>Curso</span><select data-filter-course><option value="">Todos los cursos</option>{% for course in filter_courses %}<option value="{{ course.pk }}">{{ course }}</option>{% endfor %}<option value="none">Sin curso asociado</option></select></label>
+      <label class="filter-field"><span>Mes</span><input type="month" data-filter-month></label>
+      <label class="filter-field"><span>Desde</span><input type="date" data-filter-from></label>
+      <label class="filter-field"><span>Hasta</span><input type="date" data-filter-to></label>
+    </div>
+    <div class="filter-panel-footer"><span class="filter-count" data-filter-count aria-live="polite"></span></div>
+  </div>
+  {% for group in ticket_groups %}<details class="level-group ticket-level-group" open data-ticket-group>
+    <summary>{{ group.label }} <span class="section-count" data-ticket-group-count>{{ group.items|length }}</span></summary>
+    {% for course_group in group.course_groups %}<details class="incident-course-group ticket-course-group" data-filter-group>
+      <summary><strong>{{ course_group.course_name }}</strong><span><b data-group-count>{{ course_group.students|length }}</b> estudiante{% if course_group.students|length != 1 %}s{% endif %}</span></summary>
+      <div class="incident-student-list">{% for student_group in course_group.students %}<details class="incident-student-group" data-filter-group>
+        <summary><strong>{{ student_group.student_name }}</strong><span><b data-group-count>{{ student_group.tickets|length }}</b> ticket{% if student_group.tickets|length != 1 %}s{% endif %}</span></summary>
+        <div class="table-wrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Estado</th><th>Fecha y hora</th><th>Atendido por</th></tr></thead><tbody>
+          {% for ticket in student_group.tickets %}<tr data-filter-row data-student="{{ ticket.student_name|lower }} {{ ticket.student_identification }}" data-course="{{ ticket.filter_course_id }}" data-date="{{ ticket.filter_date }}">
+            <td><strong>{{ ticket.codigo }}</strong></td><td>{{ ticket.get_tipo_display }}</td><td><span class="status-pill {% if ticket.estado == 'PENDIENTE' %}status-review{% else %}status-done{% endif %}">{{ ticket.get_estado_display }}</span></td><td>{{ ticket.creado_en|date:"d/m/Y H:i:s" }}</td><td>{{ ticket.atendido_por|default:"—" }}</td>
+          </tr>{% endfor %}
+        </tbody></table></div>
+      </details>{% endfor %}</div>
+    </details>{% endfor %}
+  </details>{% endfor %}
+  <p class="empty-state filter-empty" data-filter-empty hidden>No hay tickets que coincidan con los filtros.</p>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{% static 'js/ticket_filters.js' %}" defer></script>{% endblock %}

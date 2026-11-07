@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" role="img" aria-labelledby="logo-title">
+  <title id="logo-title">UEPMRMP</title>
+  <path fill="#F2C400" d="M126 11 225 40v74c0 59-35 95-99 115z"/>
+  <path fill="#0A157A" d="M105 11h13v55h73v13h-73v13h86v13H118v30h-13z"/>
+  <path fill="#0A157A" d="M29 73h55V11h13v75H29zM29 91h67v13H29z"/>
+  <path fill="#F2C400" d="M29 73h55v9H29zM118 66h73v9h-73zM118 91h93v9h-93z"/>
+  <path fill="#0A157A" d="M29 111h75v13H29zM118 111h13v101h-13z"/>
+  <path fill="#0A157A" d="M29 139h14l26 34 26-34h10v72H91v-42l-20 27-20-27v42H29z"/>
+  <path fill="#0A157A" d="M144 139h37c22 0 34 12 34 32s-13 33-35 33h-12v7h-24zm24 19v27h11c8 0 12-5 12-14s-4-13-12-13z"/>
+  <path fill="#0A157A" d="M46 51c0-15 9-26 22-26 12 0 21 10 21 24 0 10-4 18-11 22l1 8H61l1-8c-10-4-16-11-16-20z"/>
+  <path fill="#FFFFFF" d="M59 48c3-2 6-2 9 0 4-2 8-2 12 0l-2 10c-1 6-5 10-10 10s-9-4-10-10z"/>
+  <path fill="#0A157A" d="M56 77h26v6H56z"/>
+  <path fill="#FFFFFF" d="M64 49h2v3h-2zm9 0h2v3h-2z"/>
+</svg>

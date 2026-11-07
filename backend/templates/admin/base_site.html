@@ -1,0 +1,25 @@
+{% extends "admin/base.html" %}
+{% load static %}
+
+{% block title %}{{ title }} | {{ site_title|default:"Sistema Proctoring — UEPMRMP" }}{% endblock %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <link rel="stylesheet" href="{% static 'admin/css/institutional_admin.css' %}?v=25">
+{% endblock %}
+
+{% block branding %}
+  <div id="site-name">
+    <a class="admin-institutional-brand" href="{% url 'admin:index' %}">
+      <div class="institutional-logo-container">
+        <img src="{% static 'img/uepmrmp-logo.svg' %}" alt="UEPMRMP Logo" class="institutional-logo-img">
+      </div>
+      <div class="institutional-text-container">
+        <span class="institutional-school-name">Unidad Educativa Particular Monseñor Roberto María del Pozo</span>
+        <span class="institutional-system-title">{{ site_header|default:"Administración Sistema Proctoring — UEPMRMP" }}</span>
+      </div>
+    </a>
+  </div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

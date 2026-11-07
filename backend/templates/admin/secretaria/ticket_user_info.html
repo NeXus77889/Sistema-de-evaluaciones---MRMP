@@ -1,0 +1,26 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+  <h1>Información de cuenta</h1>
+  <section class="module">
+    <table>
+      <tbody>
+        <tr><th>Cédula</th><td>{{ ticket.estudiante.identification|default:"No registrada" }}</td></tr>
+        <tr><th>Usuario</th><td>{{ ticket.estudiante.username|default:"No encontrado" }}</td></tr>
+        <tr><th>Nombres completos</th><td>{{ ticket.estudiante.get_full_name|default:"No registrados" }}</td></tr>
+        <tr><th>Correo</th><td>{{ ticket.estudiante.email|default:ticket.correo_contacto }}</td></tr>
+        <tr><th>Curso</th><td>{% for course in courses %}{{ course.nombre }}{% if not forloop.last %}, {% endif %}{% empty %}Sin curso asignado{% endfor %}</td></tr>
+        <tr><th>Ticket</th><td>{{ ticket.codigo }}</td></tr>
+      </tbody>
+    </table>
+  </section>
+  {% if ticket.estado == "PENDIENTE" %}
+    <form method="post" class="submit-row">
+      {% csrf_token %}
+      <input type="submit" value="Marcar como resuelto" class="default">
+      <a href="{% url 'dashboard' %}">Volver</a>
+    </form>
+  {% else %}
+    <p>Ticket atendido por {{ ticket.atendido_por }} el {{ ticket.atendido_en|date:"d/m/Y H:i" }}.</p>
+  {% endif %}
+{% endblock %}

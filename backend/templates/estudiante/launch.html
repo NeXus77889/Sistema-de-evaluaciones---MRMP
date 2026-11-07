@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}{{ exam.title }}{% endblock %}
+{% block content %}
+<div class="page-heading exam-heading"><div><span class="eyebrow">Evaluación · {{ exam.duration_minutes }} MIN</span><h1>{{ exam.title }}</h1><p>{{ exam.description|default:"Lee cada pregunta con atención." }}</p></div><a class="button button-outline" href="{% url 'dashboard' %}">Salir</a></div>
+{% if launch_error %}
+<section class="data-section" role="alert"><div class="empty-state"><h2>No puedes iniciar esta evaluación</h2><p>{{ launch_error }}</p><a class="button button-outline" href="{% url 'dashboard' %}">Volver a mis evaluaciones</a></div></section>
+{% else %}
+<section id="preflight" class="preflight-layout" data-start-url="{% url 'attempt-start' exam.pk %}" data-api-root="/api/evaluaciones/intento/">
+  <div class="preflight-copy"><span class="eyebrow">Antes de comenzar</span><h2>Comprueba tu espacio</h2><p>Se requiere acceso a cámara y micrófono durante la evaluación. El navegador solicitará permiso para ambos dispositivos.</p><div class="device-status"><span class="device-indicator" id="camera-status"></span><span><strong>Cámara</strong><small id="camera-label">Pendiente de permiso</small></span></div><div class="device-status"><span class="device-indicator" id="microphone-status"></span><span><strong>Micrófono</strong><small id="microphone-label">Pendiente de permiso</small></span></div><p class="privacy-note">Se registran cambios de visibilidad de pestaña, foco y estado de los periféricos. El sistema no puede detectar todas las aplicaciones externas ni el uso de otros dispositivos.</p><button class="button button-outline" id="enable-devices" type="button">Permitir cámara y micrófono</button> <button class="button button-primary" id="begin-exam" type="button" disabled>Iniciar evaluación </button><p class="inline-error" id="preflight-error" role="alert"></p></div>
+  <div class="camera-frame" id="camera-frame"><video id="camera-preview" autoplay muted playsinline></video><span class="camera-caption"><span class="live-dot"></span>Vista previa local</span></div>
+</section>
+<section id="exam-shell" class="exam-shell" hidden>
+  <div class="exam-toolbar"><div><span class="eyebrow">{{ exam.title }}</span><p id="question-progress">Pregunta 1 de 1</p></div><div class="timer-box"><small>Tiempo restante</small><strong id="exam-timer">--:--</strong></div></div>
+  <div id="monitor-warning" class="monitor-warning" hidden role="alert"></div>
+  <div class="exam-layout"><nav id="question-nav" class="question-nav" aria-label="Navegar preguntas"></nav><article class="exam-question-panel"><div class="question-topline"><span id="question-number" class="question-number">01</span><span id="question-points" class="muted"></span></div><h2 id="question-text"></h2><fieldset id="answer-options" class="answer-options"><legend class="sr-only">Selecciona una respuesta</legend></fieldset><div class="question-actions"><button class="button button-outline" id="previous-question" type="button">Anterior</button><button class="button button-primary" id="next-question" type="button">Siguiente</button></div></article></div>
+  <div class="exam-submit-row"><span id="save-status" class="muted" aria-live="polite">Las respuestas se guardan automáticamente.</span><button id="submit-exam" class="button button-submit" type="button">Entregar evaluación</button></div>
+  <div class="focus-lock" id="focus-lock" role="alertdialog" aria-modal="true" aria-labelledby="focus-lock-title" hidden><div><span class="eyebrow">Dispositivo obligatorio</span><h2 id="focus-lock-title">Revisa cámara y micrófono</h2><p>La evaluación está pausada. Restablece los permisos de ambos dispositivos para continuar.</p><p id="restore-device-status" class="inline-error" role="status"></p><button class="button button-primary" id="restore-devices" type="button">Restablecer dispositivos</button></div></div>
+</section>
+<script src="{% static 'js/exam_runner.js' %}" defer></script>
+{% endif %}
+{% endblock %}

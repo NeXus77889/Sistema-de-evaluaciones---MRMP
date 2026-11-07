@@ -1,0 +1,19 @@
+<div class="course-picker" data-course-picker{% if widget.attrs.id %} id="{{ widget.attrs.id }}"{% endif %}>
+  <label class="course-picker-search">
+    <span>Buscar curso</span>
+    <input type="search" data-course-search autocomplete="off" placeholder="Nivel, grado o paralelo">
+  </label>
+  {% for group, options, index in widget.optgroups %}
+    <details class="course-picker-group" data-course-group open>
+      <summary>{{ group }} <span>{{ options|length }}</span></summary>
+      <button class="course-picker-all" type="button" data-course-select-group>Marcar todo el nivel</button>
+      <div class="course-picker-options">
+        {% for option in options %}
+          <div class="course-picker-option" data-course-option data-course-label="{{ option.label|lower }}">
+            {% include option.template_name with widget=option %}
+          </div>
+        {% endfor %}
+      </div>
+    </details>
+  {% endfor %}
+</div>
