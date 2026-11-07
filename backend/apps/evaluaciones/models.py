@@ -98,7 +98,7 @@ class Exam(models.Model):
         verbose_name_plural = "evaluaciones"
         constraints = [
             models.CheckConstraint(
-                condition=Q(duration_minutes__gte=1),
+                check=Q(duration_minutes__gte=1),
                 name="exam_duration_positive",
             ),
         ]
@@ -148,7 +148,7 @@ class Question(models.Model):
         ordering = ["position", "id"]
         constraints = [
             models.UniqueConstraint(fields=["exam", "position"], name="unique_exam_question_position"),
-            models.CheckConstraint(condition=Q(points__gt=0), name="question_points_positive"),
+            models.CheckConstraint(check=Q(points__gt=0), name="question_points_positive"),
         ]
 
     def __str__(self):
@@ -394,4 +394,3 @@ class RegistroCalificacion(models.Model):
 
     def __str__(self):
         return f"{self.estudiante}: {self.nota} ({self.insumo.nombre})"
-
