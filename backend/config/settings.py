@@ -2,24 +2,27 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
-
-
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Cargar variables de entorno
 load_dotenv(BASE_DIR.parent / ".env")
 load_dotenv(BASE_DIR / ".env")
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
-DEBUG = os.getenv("DJANGO_DEBUG", "False").lower() in {"1", "true", "yes"}
+# Seguridad y Debug
+DEBUG = os.getenv("DEBUG", "False").lower() in {"1", "true", "yes", "t"}
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-only-insecure-key")
+
 if not SECRET_KEY and not DEBUG:
     raise RuntimeError("DJANGO_SECRET_KEY must be configured outside debug mode.")
-SECRET_KEY = SECRET_KEY or "development-only-insecure-key"
+
 ALLOWED_HOSTS = [
     host.strip()
     for host in os.getenv("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
     if host.strip()
 ]
 
+# Aplicaciones instaladas
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -48,6 +51,7 @@ MIDDLEWARE = [
 ]
 
 ROOT_URLCONF = "config.urls"
+
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -62,9 +66,11 @@ TEMPLATES = [
         },
     }
 ]
+
 WSGI_APPLICATION = "config.wsgi.application"
 ASGI_APPLICATION = "config.asgi.application"
 
+# Base de datos unificada (pymysql compatible)
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.mysql",
@@ -73,12 +79,16 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD", "0000"),
         "HOST": os.getenv("DB_HOST", "127.0.0.1"),
         "PORT": os.getenv("DB_PORT", "3306"),
-        "OPTIONS": {"charset": "utf8mb4"},
+        "OPTIONS": {
+            "charset": "utf8mb4",
+            "init_command": "SET sql_mode='STRICT_TRANS_TABLES'",
+        },
         "CONN_MAX_AGE": 60,
     }
 }
 
 AUTH_USER_MODEL = "usuarios.User"
+
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
@@ -86,20 +96,28 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
 
+# Internacionalización
 LANGUAGE_CODE = "es"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
+
+# Archivos Estáticos y Multimedia (CSS, JS, Imágenes)
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "static"]
+
 MEDIA_URL = "media/"
 MEDIA_ROOT = BASE_DIR / "media"
+
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Autenticación
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "dashboard"
 LOGOUT_REDIRECT_URL = "login"
 
+# Django Rest Framework
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
@@ -110,6 +128,8 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.UserRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"user": "300/hour"},
 }
+
+# Variables de Proctoring
 PROCTOR_MEDIUM_THRESHOLD = int(os.getenv("PROCTOR_MEDIUM_THRESHOLD", "20"))
 PROCTOR_HIGH_THRESHOLD = int(os.getenv("PROCTOR_HIGH_THRESHOLD", "50"))
 PROCTOR_WEIGHT_TAB_HIDDEN = int(os.getenv("PROCTOR_WEIGHT_TAB_HIDDEN", "12"))
@@ -119,6 +139,7 @@ PROCTOR_WEIGHT_MICROPHONE_LOST = int(os.getenv("PROCTOR_WEIGHT_MICROPHONE_LOST",
 PROCTOR_WEIGHT_CAMERA_MUTED = int(os.getenv("PROCTOR_WEIGHT_CAMERA_MUTED", "14"))
 PROCTOR_WEIGHT_MICROPHONE_MUTED = int(os.getenv("PROCTOR_WEIGHT_MICROPHONE_MUTED", "14"))
 
+# Correo
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"
 EMAIL_HOST = os.getenv("EMAIL_HOST", "localhost")
 EMAIL_PORT = int(os.getenv("EMAIL_PORT", "587"))
@@ -127,30 +148,13 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in {"1", "true", "yes"}
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@example.com")
 
+# Seguridad de Cookies
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True
 X_FRAME_OPTIONS = "DENY"
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
+
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
     CSRF_COOKIE_SECURE = True
-
-import os
-from pathlib import Path
-
-# Cargar variables de entorno (utilizando python-dotenv o os.environ)
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ.get('DB_NAME', 'evaluaciones_proctoring'),
-        'USER': os.environ.get('DB_USER', 'admin'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', '0000'),
-        'HOST': os.environ.get('DB_HOST', '127.0.0.1'),
-        'PORT': os.environ.get('DB_PORT', '3306'),
-        'OPTIONS': {
-            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-            'charset': 'utf8mb4',
-        },
-    }
-}
