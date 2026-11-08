@@ -98,7 +98,7 @@ class Exam(models.Model):
         verbose_name_plural = "evaluaciones"
         constraints = [
             models.CheckConstraint(
-                check=Q(duration_minutes__gte=1),
+                condition=Q(duration_minutes__gte=1),                
                 name="exam_duration_positive",
             ),
         ]
