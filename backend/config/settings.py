@@ -10,7 +10,7 @@ load_dotenv(BASE_DIR.parent / ".env")
 load_dotenv(BASE_DIR / ".env")
 
 # Seguridad y Debug
-DEBUG = os.getenv("DEBUG", "False").lower() in {"1", "true", "yes", "t"}
+DEBUG = os.getenv("DJANGO_DEBUG", os.getenv("DEBUG", "False")).lower() in {"1", "true", "yes", "t"}
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "development-only-insecure-key")
 
 if not SECRET_KEY and not DEBUG:
@@ -41,13 +41,9 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",   # <-- agregar esta línea
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
-    "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "apps.core.middleware.ForcePasswordChangeMiddleware",
-    "django.contrib.messages.middleware.MessageMiddleware",
-    "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    ...
 ]
 
 ROOT_URLCONF = "config.urls"
