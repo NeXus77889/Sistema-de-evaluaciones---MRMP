@@ -43,7 +43,7 @@ MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",   # <-- agregar esta línea
     "django.contrib.sessions.middleware.SessionMiddleware",
-    ...
+    
 ]
 
 ROOT_URLCONF = "config.urls"
