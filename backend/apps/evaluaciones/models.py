@@ -148,7 +148,7 @@ class Question(models.Model):
         ordering = ["position", "id"]
         constraints = [
             models.UniqueConstraint(fields=["exam", "position"], name="unique_exam_question_position"),
-            models.CheckConstraint(check=Q(points__gt=0), name="question_points_positive"),
+            models.CheckConstraint(condition=Q(points__gt=0), name="question_points_positive"),
         ]
 
     def __str__(self):
