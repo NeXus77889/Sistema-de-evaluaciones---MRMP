@@ -77,7 +77,11 @@ DATABASES = {
         'PORT': os.environ.get('DB_PORT', '3306'),
         'OPTIONS': {
             'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
-            # Forzar a Django a permitir versiones antiguas de MySQL si sigue el error:
+            **(
+                {'ssl': {'ca': os.environ['DB_SSL_CA']}}
+                if os.environ.get('DB_SSL_CA')
+                else {}
+            ),
         },
     }
 }
