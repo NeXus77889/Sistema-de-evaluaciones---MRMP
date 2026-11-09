@@ -1,7 +1,6 @@
 from django.contrib import admin
 from django.contrib import messages
 from django.contrib.auth.admin import UserAdmin
-from django.utils.crypto import get_random_string
 from django.contrib.admin import SimpleListFilter
 
 # Importaciones relativas dentro del mismo módulo
@@ -74,6 +73,7 @@ class CustomUserAdmin(UserAdmin):
     search_fields = ("username", "first_name", "last_name", "email")
     ordering = ("username",)
     actions = ("reset_temporary_password",)
+    change_list_template = "admin/usuarios/user/change_list.html"
     fieldsets = UserAdmin.fieldsets + (
         ("Perfil", {"fields": ("rol", "identification", "debe_cambiar_password")}),
     )
@@ -159,17 +159,27 @@ class CustomUserAdmin(UserAdmin):
     def full_name(self, user):
         return user.get_full_name()
 
-    @admin.action(description="Restablecer contraseña a clave temporal")
+    @admin.action(description="Restablecer contraseña a la cédula")
     def reset_temporary_password(self, request, queryset):
-        credentials = []
+        reset_count = 0
+        skipped = []
         for user in queryset:
-            temporary_password = get_random_string(14)
-            user.set_password(temporary_password)
+            if not user.identification:
+                skipped.append(user.username)
+                continue
+            user.set_password(user.identification)
             user.debe_cambiar_password = True
             user.save(update_fields=["password", "debe_cambiar_password"])
-            credentials.append(f"{user.username}: {temporary_password}")
+            reset_count += 1
         self.message_user(
             request,
-            "Claves temporales: " + "; ".join(credentials),
-            level=messages.WARNING,
+            f"{reset_count} contraseña(s) restablecida(s) a la cédula; "
+            "deberán cambiarla al ingresar.",
+            level=messages.SUCCESS,
         )
+        if skipped:
+            self.message_user(
+                request,
+                "Sin cédula registrada (no restablecidos): " + ", ".join(skipped),
+                level=messages.WARNING,
+            )

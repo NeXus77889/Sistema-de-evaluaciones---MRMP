@@ -18,7 +18,10 @@ class ForcePasswordChangeMiddleware:
         if (
             user.is_authenticated
             and user.debe_cambiar_password
-            and user.rol in {User.Role.TEACHER, User.Role.STUDENT}
+            and (
+                user.rol in {User.Role.TEACHER, User.Role.STUDENT}
+                or (user.rol == User.Role.ADMINISTRATOR and not user.is_superuser)
+            )
             and request.path_info not in allowed_paths
         ):
             return redirect("password-change")

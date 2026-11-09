@@ -3,7 +3,6 @@ from io import BytesIO
 from io import StringIO
 from tempfile import NamedTemporaryFile
 from types import SimpleNamespace
-from unittest.mock import patch
 
 from django.contrib import admin as django_admin
 from django.contrib.auth.hashers import check_password
@@ -15,7 +14,13 @@ from openpyxl import Workbook
 
 from apps.evaluaciones.models import AsignacionDocente, Curso, Materia
 from apps.usuarios.models import User
-from apps.usuarios.services import importar_docentes, importar_nomina
+from apps.usuarios import personal
+from apps.usuarios.services import (
+    NominaImportError,
+    importar_docentes,
+    importar_nomina,
+    importar_personal,
+)
 
 
 def make_workbook(records):
@@ -313,6 +318,7 @@ class NominaImportTests(TestCase):
         self.assertEqual(teacher.username, "0123456789")
         self.assertEqual(teacher.rol, User.Role.TEACHER)
         self.assertTrue(teacher.debe_cambiar_password)
+        self.assertTrue(check_password("0123456789", teacher.password))
         self.assertEqual(teacher.first_name, "ANA MARIA")
         self.assertEqual(teacher.last_name, "LOPEZ PEREZ")
         assignments = set(
@@ -434,14 +440,32 @@ class NominaImportTests(TestCase):
         source = make_workbook(
             [["1002", "Luis", "Díaz", "luis@example.com", "2026A", "Curso 2026"]]
         )
-        with patch("apps.usuarios.services.get_random_string", return_value="Temporary!234"):
-            summary = importar_nomina(source, "nomina.xlsx")
+        summary = importar_nomina(source, "nomina.xlsx")
         created_student = User.objects.get(identification="1002")
         self.assertEqual(created_student.rol, User.Role.STUDENT)
         self.assertTrue(created_student.debe_cambiar_password)
-        self.assertNotEqual(created_student.password, "Temporary!234")
-        self.assertTrue(check_password("Temporary!234", created_student.password))
-        self.assertEqual(summary["claves_temporales"], [("1002", "Temporary!234")])
+        self.assertNotEqual(created_student.password, "1002")
+        self.assertTrue(check_password("1002", created_student.password))
+        self.assertEqual(summary["claves_temporales"], [("1002", "1002")])
+
+    def test_reimport_does_not_reset_existing_password(self):
+        student = User.objects.create_user(
+            username="1003",
+            email="m@example.com",
+            password="ChangedStrongPass!234",
+            identification="1003",
+            debe_cambiar_password=False,
+        )
+        source = make_workbook(
+            [["1003", "Mara", "Ruiz", "m@example.com", "2026A", "Curso 2026"]]
+        )
+        summary = importar_nomina(source, "nomina.xlsx")
+
+        student.refresh_from_db()
+        self.assertTrue(check_password("ChangedStrongPass!234", student.password))
+        self.assertFalse(student.debe_cambiar_password)
+        self.assertEqual(summary["claves_temporales"], [])
+        self.assertEqual(summary["reporte"][0]["clave_temporal"], "Sin cambios")
 
     def test_course_import_page_uses_shared_import_service(self):
         admin_user = User.objects.create_superuser(
@@ -474,3 +498,249 @@ class NominaImportTests(TestCase):
                 codigo="2B", estudiantes__identification="2001"
             ).exists()
         )
+
+
+PERSONAL_HEADERS = [
+    "cedula", "nombre", "correo", "telefono", "funcion_tutoria",
+    "atencion_dia", "atencion_desde", "atencion_hasta",
+    "asignatura", "curso_paralelo", "horas_carga",
+]
+
+
+def make_personal_workbook(rows):
+    workbook = Workbook()
+    sheet = workbook.active
+    sheet.title = "Personal"
+    sheet.append(PERSONAL_HEADERS)
+    for row in rows:
+        cedula, nombre, correo, funcion, *rest = row
+        asignatura, curso = (rest + ["", ""])[:2]
+        sheet.append(
+            [cedula, nombre, correo, "0999999999", funcion, None, None, None,
+             asignatura or None, curso or None, None]
+        )
+    instructions = workbook.create_sheet("INSTRUCCIONES")
+    instructions.append(["Campo", "Uso"])
+    instructions.append(["cedula", "Identificador interno"])
+    source = BytesIO()
+    workbook.save(source)
+    source.seek(0)
+    return source
+
+
+class PersonalRulesTests(TestCase):
+    def test_split_name_removes_titles_and_keeps_two_surnames(self):
+        self.assertEqual(
+            personal.split_name("Lcda. Celia Isabel Pérez Gómez"),
+            ("Celia Isabel", "Pérez Gómez"),
+        )
+        self.assertEqual(
+            personal.split_name("MSc. Lcdo. Luis De la Cruz Mora"),
+            ("Luis", "De la Cruz Mora"),
+        )
+        self.assertEqual(personal.split_name("Steven Mora Díaz"), ("Steven", "Mora Díaz"))
+        self.assertEqual(personal.split_name("Ana Pérez"), ("Ana", "Pérez"))
+
+    def test_classify_function(self):
+        for funcion in ("3° A", "Inicial 1", "1ero", "3° Ciencias “B”", "2do A",
+                        "Docente de física", "Informática y robótica"):
+            self.assertEqual(personal.classify_function(funcion), ("DOCENTE", False), funcion)
+        self.assertEqual(personal.classify_function("Secretaria"), ("ADMIN", True))
+        self.assertEqual(personal.classify_function("Rector"), ("ADMIN", True))
+        self.assertEqual(personal.classify_function("Administradora"), ("ADMIN", True))
+        self.assertEqual(personal.classify_function("Subinspectora"), ("ADMIN", False))
+        self.assertEqual(personal.classify_function("Cámaras"), ("ADMIN", False))
+        self.assertEqual(personal.classify_function("Coord. Académica"), ("ADMIN", False))
+        self.assertEqual(personal.classify_function("Colectora"), (None, False))
+        self.assertEqual(personal.classify_function("Colectora", "Física"), ("DOCENTE", False))
+
+
+class ImportarPersonalTests(TestCase):
+    def test_imports_roles_names_passwords_and_omissions(self):
+        source = make_personal_workbook(
+            [
+                ["927475681", "Lcda. Celia Isabel Pérez Gómez", "celia@example.com", "Inicial 1"],
+                ["0958775702", "MSc. Ana Luz Vera De la Cruz", "", "3° A"],
+                ["0911111111", "Prof. Mario Ruiz Soto", "mario@example.com",
+                 "Docente de Matemática Bachillerato", "Matemática", ""],
+                ["0922222222", "Hna. Rosa María Tello Mora", "rosa@example.com", "Administradora"],
+                ["0933333333", "Sr. Pedro Luna Vera", "pedro@example.com", "Cámaras"],
+                ["0944444444", "Lcda. Sara Mora Díaz", "sara@example.com", "Colectora"],
+                ["", "Lcdo. Sin Cedula Perez", "x@example.com", "Inspector"],
+            ]
+        )
+
+        summary = importar_personal(source, "personal.xlsx")
+
+        self.assertEqual(summary["docentes_creados"], 3)
+        self.assertEqual(summary["administrativos_creados"], 2)
+        self.assertEqual(summary["omitidos"], 2)
+
+        tutor = User.objects.get(identification="0927475681")
+        self.assertEqual(tutor.rol, User.Role.TEACHER)
+        self.assertEqual((tutor.first_name, tutor.last_name), ("Celia Isabel", "Pérez Gómez"))
+        self.assertTrue(check_password("0927475681", tutor.password))
+        self.assertTrue(tutor.debe_cambiar_password)
+        self.assertFalse(tutor.is_staff)
+
+        no_email = User.objects.get(identification="0958775702")
+        self.assertEqual(no_email.last_name, "Vera De la Cruz")
+        self.assertTrue(no_email.email.endswith("@nomina.invalid"))
+
+        administrator = User.objects.get(identification="0922222222")
+        self.assertEqual(administrator.rol, User.Role.ADMINISTRATOR)
+        self.assertTrue(administrator.is_staff)
+        self.assertFalse(administrator.is_superuser)
+        self.assertTrue(check_password("0922222222", administrator.password))
+
+        cameras = User.objects.get(identification="0933333333")
+        self.assertEqual(cameras.rol, User.Role.ADMINISTRATOR)
+        self.assertFalse(cameras.is_staff)
+
+        self.assertFalse(User.objects.filter(identification="0944444444").exists())
+        omitted = [row for row in summary["reporte"] if row["rol"] == "No importado"]
+        self.assertEqual(len(omitted), 2)
+        math_row = next(r for r in summary["reporte"] if r["identificacion"] == "0911111111")
+        self.assertIn("pendiente de curso", math_row["curso"])
+
+    def test_reimport_keeps_passwords_and_protects_students_and_superusers(self):
+        teacher = User.objects.create_user(
+            username="0955555555", email="t@example.com", password="Changed!Pass234",
+            identification="0955555555", rol=User.Role.TEACHER, debe_cambiar_password=False,
+        )
+        student = User.objects.create_user(
+            username="0966666666", email="s@example.com", password="Student!Pass234",
+            identification="0966666666", rol=User.Role.STUDENT,
+        )
+        boss = User.objects.create_superuser(
+            username="0977777777", email="b@example.com", password="Boss!Pass234",
+            identification="0977777777",
+        )
+        source = make_personal_workbook(
+            [
+                ["0955555555", "Lcda. Nora Gil Paz", "nora@example.com", "4° A"],
+                ["0966666666", "Lcdo. Raul Gil Paz", "raul@example.com", "5° A"],
+                ["0977777777", "Ing. Boss Gil Paz", "boss@example.com", "Rector"],
+            ]
+        )
+
+        summary = importar_personal(source, "personal.xlsx")
+
+        teacher.refresh_from_db()
+        student.refresh_from_db()
+        boss.refresh_from_db()
+        self.assertTrue(check_password("Changed!Pass234", teacher.password))
+        self.assertFalse(teacher.debe_cambiar_password)
+        self.assertEqual(teacher.first_name, "Nora")
+        self.assertEqual(student.rol, User.Role.STUDENT)
+        self.assertEqual(student.email, "s@example.com")
+        self.assertEqual(boss.rol, User.Role.ADMINISTRATOR)
+        self.assertEqual(boss.email, "b@example.com")
+        self.assertEqual(summary["docentes_actualizados"], 1)
+        self.assertEqual(summary["omitidos"], 2)
+        self.assertEqual(summary["claves_temporales"], [])
+
+    def test_creates_assignments_when_course_is_given_and_groups_repeated_cedula(self):
+        physics = Materia.objects.create(nombre="Física", codigo="FIS")
+        math = Materia.objects.create(nombre="Matemática", codigo="MAT")
+        first = Curso.objects.create(nombre="Primero A", codigo="1A")
+        second = Curso.objects.create(nombre="Segundo A", codigo="2A")
+        source = make_personal_workbook(
+            [
+                ["0988888888", "Ing. Leo Paz Ruiz", "leo@example.com", "Docente de física", "Física", "1A"],
+                ["0988888888", "Ing. Leo Paz Ruiz", "leo@example.com", "Docente de física", "Matemática", "2A"],
+            ]
+        )
+
+        summary = importar_personal(source, "personal.xlsx")
+
+        teacher = User.objects.get(identification="0988888888")
+        self.assertEqual(User.objects.filter(identification="0988888888").count(), 1)
+        self.assertEqual(
+            set(AsignacionDocente.objects.filter(docente=teacher).values_list("materia_id", "curso_id")),
+            {(physics.pk, first.pk), (math.pk, second.pk)},
+        )
+        self.assertEqual(summary["asignaciones"], 2)
+        self.assertEqual(len(summary["reporte"]), 1)
+
+    def test_duplicate_email_fails_with_row_and_rolls_back(self):
+        User.objects.create_user(
+            username="0900000001", email="dup@example.com", password="Dup!Pass234",
+            identification="0900000001",
+        )
+        source = make_personal_workbook(
+            [
+                ["0900000002", "Lcda. Uno Dos Tres", "uno@example.com", "6° A"],
+                ["0900000003", "Lcda. Tres Dos Uno", "dup@example.com", "6° B"],
+            ]
+        )
+
+        with self.assertRaises(NominaImportError) as raised:
+            importar_personal(source, "personal.xlsx")
+
+        self.assertIn("fila 3", str(raised.exception))
+        self.assertFalse(User.objects.filter(identification="0900000002").exists())
+
+    def test_sheet_without_required_columns_is_rejected(self):
+        source = make_workbook([["1", "Ana", "Pérez", "a@example.com", "2026A", "Curso"]])
+        with self.assertRaises(NominaImportError):
+            importar_personal(source, "nomina.xlsx")
+
+    def test_import_page_is_superuser_only_and_command_runs(self):
+        admin_user = User.objects.create_superuser(
+            username="admin-personal", email="admin-personal@example.com",
+            password="AdminStrongPass!234",
+        )
+        url = reverse("admin:evaluaciones_curso_importar_personal")
+        self.client.force_login(admin_user)
+        upload = SimpleUploadedFile(
+            "personal.xlsx",
+            make_personal_workbook(
+                [["0912121212", "Lcda. Eva Mora Paz", "eva@example.com", "7° A"]]
+            ).getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        response = self.client.post(url, {"archivo": upload}, follow=True)
+        self.assertContains(response, "Resultado de importación de personal")
+        self.assertTrue(User.objects.filter(identification="0912121212").exists())
+
+        staff = User.objects.create_user(
+            username="0913131313", email="staff@example.com", password="StaffPass!234",
+            rol=User.Role.ADMINISTRATOR, is_staff=True, identification="0913131313",
+            debe_cambiar_password=False,
+        )
+        self.client.force_login(staff)
+        self.assertEqual(self.client.get(url).status_code, 403)
+
+        excel_file = NamedTemporaryFile(suffix=".xlsx", delete=False)
+        try:
+            excel_file.write(
+                make_personal_workbook(
+                    [["0914141414", "Lcdo. Ivan Mora Paz", "ivan@example.com", "Inspector"]]
+                ).getvalue()
+            )
+            excel_file.close()
+            output = StringIO()
+            call_command("importar_personal", excel_file.name, stdout=output)
+        finally:
+            if os.path.exists(excel_file.name):
+                os.unlink(excel_file.name)
+        self.assertEqual(User.objects.get(identification="0914141414").rol, User.Role.ADMINISTRATOR)
+        self.assertIn("Importación completada", output.getvalue())
+
+
+class AdministratorPasswordChangeTests(TestCase):
+    def test_non_superuser_administrator_must_change_password_but_superuser_does_not(self):
+        administrator = User.objects.create_user(
+            username="0920202020", email="adm@example.com", password="0920202020",
+            rol=User.Role.ADMINISTRATOR, is_staff=True, identification="0920202020",
+            debe_cambiar_password=True,
+        )
+        self.client.force_login(administrator)
+        self.assertRedirects(self.client.get(reverse("dashboard")), reverse("password-change"))
+
+        superuser = User.objects.create_superuser(
+            username="root", email="root@example.com", password="RootStrong!234"
+        )
+        self.client.force_login(superuser)
+        self.assertEqual(self.client.get(reverse("dashboard")).status_code, 200)

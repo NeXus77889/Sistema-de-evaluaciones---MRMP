@@ -20,6 +20,7 @@ from apps.usuarios.services import (
     NominaImportError,
     importar_docentes,
     importar_nomina,
+    importar_personal,
 )
 
 # pyrefly: ignore[missing-import]
@@ -74,6 +75,11 @@ class CursoAdmin(admin.ModelAdmin):
                 "importar-docentes/",
                 self.admin_site.admin_view(self.importar_docentes_view),
                 name="evaluaciones_curso_importar_docentes",
+            ),
+            path(
+                "importar-personal/",
+                self.admin_site.admin_view(self.importar_personal_view),
+                name="evaluaciones_curso_importar_personal",
             ),
             path(
                 "resultado-importacion/<uuid:report_id>/",
@@ -179,6 +185,41 @@ class CursoAdmin(admin.ModelAdmin):
         }
         return render(request, "admin/evaluaciones/curso/import_nomina.html", context)
 
+    def importar_personal_view(self, request):
+        # Crea cuentas con rol Administrador: solo superusuarios.
+        if not request.user.is_superuser:
+            raise PermissionDenied
+
+        form = ImportPersonalForm(request.POST or None, request.FILES or None)
+        if request.method == "POST" and form.is_valid():
+            uploaded_file = form.cleaned_data["archivo"]
+            try:
+                summary = importar_personal(uploaded_file, uploaded_file.name)
+            except NominaImportError as error:
+                messages.error(request, str(error))
+            else:
+                messages.success(
+                    request,
+                    f"Personal importado: {summary['docentes_creados']} docentes y "
+                    f"{summary['administrativos_creados']} administrativos nuevos, "
+                    f"{summary['docentes_actualizados'] + summary['administrativos_actualizados']} "
+                    f"actualizados, {summary['omitidos']} omitidos (ver reporte).",
+                )
+                return self._save_report(
+                    request,
+                    summary,
+                    "Resultado de importación de personal",
+                )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Importar personal institucional",
+            "submit_label": "Importar personal",
+            "form": form,
+        }
+        return render(request, "admin/evaluaciones/curso/import_nomina.html", context)
+
     def resultado_importacion_view(self, request, report_id):
         if not (
             self._can_import_students(request)
@@ -256,12 +297,31 @@ class ImportNominaForm(forms.Form):
 
 
 class ImportDocentesForm(forms.Form):
-    archivo = forms.FileField(label="Archivo Excel o CSV")
+    archivo = forms.FileField(label="Archivo Excel (.xlsx, .xls) o CSV")
 
     def clean_archivo(self):
         archivo = self.cleaned_data["archivo"]
-        if archivo.name.rsplit(".", 1)[-1].lower() not in {"xlsx", "csv"}:
-            raise forms.ValidationError("Selecciona un archivo .xlsx o .csv.")
+        if archivo.name.rsplit(".", 1)[-1].lower() not in {"xlsx", "xls", "csv"}:
+            raise forms.ValidationError("Selecciona un archivo .xlsx, .xls o .csv.")
+        if archivo.size > 20 * 1024 * 1024:
+            raise forms.ValidationError("El archivo no puede superar 20 MB.")
+        return archivo
+
+
+class ImportPersonalForm(forms.Form):
+    archivo = forms.FileField(
+        label="Plantilla de personal (.xlsx, .xls o .csv)",
+        help_text=(
+            "Columnas: cedula, nombre, correo, funcion_tutoria, asignatura, "
+            "curso_paralelo. El rol sale de funcion_tutoria. Las cuentas nuevas "
+            "ingresan con su cédula como clave."
+        ),
+    )
+
+    def clean_archivo(self):
+        archivo = self.cleaned_data["archivo"]
+        if archivo.name.rsplit(".", 1)[-1].lower() not in {"xlsx", "xls", "csv"}:
+            raise forms.ValidationError("Selecciona un archivo .xlsx, .xls o .csv.")
         if archivo.size > 20 * 1024 * 1024:
             raise forms.ValidationError("El archivo no puede superar 20 MB.")
         return archivo

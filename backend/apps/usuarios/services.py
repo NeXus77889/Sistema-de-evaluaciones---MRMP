@@ -8,11 +8,11 @@ import unicodedata
 import xlrd
 from django.db import transaction
 from django.db.models import Q
-from django.utils.crypto import get_random_string
 from openpyxl import load_workbook
 
 from apps.evaluaciones.models import AsignacionDocente, Curso, Materia
 
+from . import personal
 from .models import User
 
 
@@ -610,7 +610,8 @@ def importar_nomina(source: BinaryIO, filename: str):
                 Q(identification=record["identificacion"])
                 | Q(username=record["identificacion"])
             ).first()
-            temporary_password = get_random_string(20)
+            temporary_password = record["identificacion"]
+            created_student = student is None
             if student is None:
                 student = User.objects.create_user(
                     username=record["identificacion"],
@@ -641,9 +642,6 @@ def importar_nomina(source: BinaryIO, filename: str):
                 ]
                 if record["email"]:
                     update_fields.append("email")
-                student.set_password(temporary_password)
-                student.debe_cambiar_password = True
-                update_fields.extend(("password", "debe_cambiar_password"))
                 student.save(update_fields=update_fields)
                 summary["estudiantes_actualizados"] += 1
 
@@ -652,9 +650,10 @@ def importar_nomina(source: BinaryIO, filename: str):
                 previous_course.estudiantes.remove(student)
             curso.estudiantes.add(student)
             summary["filas"] += 1
-            summary["claves_temporales"].append(
-                (record["identificacion"], temporary_password)
-            )
+            if created_student:
+                summary["claves_temporales"].append(
+                    (record["identificacion"], temporary_password)
+                )
             summary["reporte"].append(
                 {
                     "identificacion": record["identificacion"],
@@ -663,7 +662,9 @@ def importar_nomina(source: BinaryIO, filename: str):
                     "apellidos": record["apellidos"],
                     "rol": "Estudiante",
                     "curso": curso.nombre,
-                    "clave_temporal": temporary_password,
+                    "clave_temporal": (
+                        temporary_password if created_student else "Sin cambios"
+                    ),
                 }
             )
         except Exception as error:
@@ -713,7 +714,8 @@ def importar_docentes(source: BinaryIO, filename: str):
                 teacher = User.objects.select_for_update().filter(
                     Q(identification=identification) | Q(username=identification)
                 ).first()
-                temporary_password = get_random_string(20)
+                temporary_password = identification
+                created_teacher = teacher is None
                 if teacher is None:
                     teacher = User.objects.create_user(
                         username=identification,
@@ -733,8 +735,6 @@ def importar_docentes(source: BinaryIO, filename: str):
                     teacher.email = record["email"]
                     teacher.identification = identification
                     teacher.rol = User.Role.TEACHER
-                    teacher.set_password(temporary_password)
-                    teacher.debe_cambiar_password = True
                     teacher.save(
                         update_fields=(
                             "first_name",
@@ -743,8 +743,6 @@ def importar_docentes(source: BinaryIO, filename: str):
                             "email",
                             "identification",
                             "rol",
-                            "password",
-                            "debe_cambiar_password",
                         )
                     )
                     summary["docentes_actualizados"] += 1
@@ -758,14 +756,17 @@ def importar_docentes(source: BinaryIO, filename: str):
                         "apellidos": record["apellidos"],
                         "rol": "Docente",
                         "curso": "",
-                        "clave_temporal": temporary_password,
+                        "clave_temporal": (
+                            temporary_password if created_teacher else "Sin cambios"
+                        ),
                     },
                     "courses": [],
                 }
                 imported_teachers[identification] = imported_teacher
-                summary["claves_temporales"].append(
-                    (identification, temporary_password)
-                )
+                if created_teacher:
+                    summary["claves_temporales"].append(
+                        (identification, temporary_password)
+                    )
                 summary["reporte"].append(imported_teacher["report"])
 
             for subject, course in assignment_pairs:
@@ -791,3 +792,185 @@ def importar_docentes(source: BinaryIO, filename: str):
             raise NominaImportError(f"{row_label}: {error}") from error
 
     return summary
+
+
+def _omitted_row(record, reason):
+    return {
+        "identificacion": record["identificacion"] or "(sin cédula)",
+        "username": "",
+        "nombres": record["nombre"],
+        "apellidos": "",
+        "rol": "No importado",
+        "curso": record["funcion"],
+        "clave_temporal": reason,
+    }
+
+
+@transaction.atomic
+def importar_personal(source: BinaryIO, filename: str):
+    """Importa la plantilla de personal institucional (docentes y administrativos).
+
+    El rol sale de la columna ``funcion_tutoria`` (ver ``personal.py``). La clave
+    inicial de las cuentas nuevas es la cédula, con cambio obligatorio; las
+    cuentas que ya existen conservan su clave.
+    """
+    try:
+        sheets = _read_teacher_sheets(source, filename)
+    except NominaImportError:
+        raise
+    except Exception as error:
+        raise NominaImportError(f"No se pudo leer el archivo de personal: {error}") from error
+
+    records = []
+    for sheet_name, rows in sheets:
+        sheet_records = personal.parse_sheet(sheet_name, rows)
+        if sheet_records:
+            records.extend(sheet_records)
+    if not records:
+        raise NominaImportError(
+            "No se encontraron filas de personal. La hoja debe tener las columnas "
+            "cedula, nombre y funcion_tutoria."
+        )
+
+    summary = _empty_summary()
+    summary.update(
+        {"administrativos_creados": 0, "administrativos_actualizados": 0, "omitidos": 0}
+    )
+    people = {}
+
+    def omit(record, reason):
+        summary["omitidos"] += 1
+        summary["reporte"].append(_omitted_row(record, reason))
+
+    for row_label, record in records:
+        try:
+            identification = record["identificacion"]
+            if not identification:
+                omit(record, "Omitido: sin cédula")
+                continue
+
+            if identification not in people:
+                people[identification] = _import_staff_member(
+                    row_label, record, summary, omit
+                )
+            person = people[identification]
+            if person is None:
+                continue
+
+            summary["filas"] += 1
+            if person["rol"] != User.Role.TEACHER or not record["asignatura"]:
+                continue
+            if not record["curso"]:
+                note = f"asignatura pendiente de curso: {record['asignatura']}"
+                if note not in person["notes"]:
+                    person["notes"].append(note)
+                    person["report"]["curso"] = (
+                        f"{person['funcion']} ({'; '.join(person['notes'])})"
+                    )
+                continue
+            subjects = [
+                _resolve_subject(value) for value in _split_values(record["asignatura"])
+            ]
+            courses = [_resolve_course(value) for value in _split_values(record["curso"])]
+            for subject, course in _assignment_pairs(subjects, courses, row_label):
+                assignment, created = AsignacionDocente.objects.get_or_create(
+                    docente=person["user"],
+                    materia=subject,
+                    curso=course,
+                    defaults={"activo": True},
+                )
+                if not created and not assignment.activo:
+                    assignment.activo = True
+                    assignment.save(update_fields=["activo"])
+                summary["asignaciones"] += 1
+        except Exception as error:
+            raise NominaImportError(f"{row_label}: {error}") from error
+
+    return summary
+
+
+def _import_staff_member(row_label, record, summary, omit):
+    identification = record["identificacion"]
+    role_code, is_staff = personal.classify_function(
+        record["funcion"], record["asignatura"]
+    )
+    if role_code is None:
+        omit(
+            record,
+            f"Omitido: función '{record['funcion']}' sin rol definido (ver personal.py)",
+        )
+        return None
+    role = User.Role.ADMINISTRATOR if role_code == personal.ROL_ADMIN else User.Role.TEACHER
+
+    nombres, apellidos = personal.split_name(record["nombre"])
+    if not nombres:
+        raise NominaImportError("falta el nombre.")
+    email = record["correo"].strip()
+    if email and "@" not in email:
+        raise NominaImportError(f"el correo '{email}' no es válido.")
+
+    user = User.objects.select_for_update().filter(
+        Q(identification=identification) | Q(username=identification)
+    ).first()
+    if user is not None and user.is_superuser:
+        omit(record, "Omitido: es superusuario, no se modifica")
+        return None
+    if user is not None and user.rol == User.Role.STUDENT:
+        omit(record, "Omitido: ya existe como estudiante")
+        return None
+    if email:
+        clash = User.objects.filter(email__iexact=email)
+        if user is not None:
+            clash = clash.exclude(pk=user.pk)
+        if clash.exists():
+            raise NominaImportError(f"el correo '{email}' ya pertenece a otro usuario.")
+
+    created = user is None
+    if created:
+        user = User.objects.create_user(
+            username=identification,
+            email=email or f"personal-{identification}@nomina.invalid",
+            password=identification,
+            first_name=nombres,
+            last_name=apellidos,
+            rol=role,
+            identification=identification,
+            debe_cambiar_password=True,
+            is_staff=is_staff,
+        )
+    else:
+        user.first_name = nombres
+        user.last_name = apellidos
+        user.identification = identification
+        user.rol = role
+        update_fields = ["first_name", "last_name", "identification", "username", "rol"]
+        if email:
+            user.email = email
+            update_fields.append("email")
+        if is_staff and not user.is_staff:
+            user.is_staff = True
+            update_fields.append("is_staff")
+        user.save(update_fields=update_fields)
+
+    is_teacher = role == User.Role.TEACHER
+    key = "docentes" if is_teacher else "administrativos"
+    summary[f"{key}_{'creados' if created else 'actualizados'}"] += 1
+    if created:
+        summary["claves_temporales"].append((identification, identification))
+    report = {
+        "identificacion": identification,
+        "username": user.username,
+        "nombres": nombres,
+        "apellidos": apellidos,
+        "rol": "Docente" if is_teacher else "Administrativo",
+        "curso": record["funcion"],
+        "clave_temporal": identification if created else "Sin cambios",
+    }
+    summary["reporte"].append(report)
+    return {
+        "user": user,
+        "rol": role,
+        "funcion": record["funcion"],
+        "report": report,
+        "notes": [],
+    }
