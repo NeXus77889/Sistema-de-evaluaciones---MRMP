@@ -618,3 +618,66 @@ body { overflow-x: clip; max-width: 100vw; }
   .stat-card strong { font-size: 22px; }
   .exam-camera-preview { width: 90px; }
 }
+/* ===== Mensajería: formulario y buscador de destinatarios ===== */
+.compose-form .form-control,
+.compose-form select,
+.compose-form textarea,
+.compose-form input[type="text"] {
+  width: 100%;
+  padding: .6rem .75rem;
+  border: 1px solid #cbd5e1;
+  border-radius: .5rem;
+  background: #fff;
+  font: inherit;
+  box-sizing: border-box;
+}
+.compose-form .form-control:focus,
+.compose-form select:focus,
+.compose-form textarea:focus {
+  outline: none;
+  border-color: #1d4ed8;
+  box-shadow: 0 0 0 3px rgba(29, 78, 216, .15);
+}
+.up { display: flex; flex-direction: column; gap: .6rem; }
+.up-selected {
+  display: flex; flex-wrap: wrap; align-items: center; gap: .5rem;
+  min-height: 2.6rem; padding: .5rem .75rem;
+  border: 1px dashed #cbd5e1; border-radius: .5rem; background: #f8fafc;
+}
+.up-placeholder { color: #64748b; font-size: .9rem; }
+.up-clear {
+  margin-left: auto; border: 0; background: #e2e8f0; color: #334155;
+  width: 1.6rem; height: 1.6rem; border-radius: 999px; cursor: pointer; line-height: 1;
+}
+.up-clear:hover { background: #cbd5e1; }
+.up-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.up-chip {
+  border: 1px solid #cbd5e1; background: #fff; color: #334155;
+  padding: .3rem .8rem; border-radius: 999px; font-size: .85rem; cursor: pointer;
+}
+.up-chip.is-active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.up-search {
+  width: 100%; padding: .6rem .75rem; border: 1px solid #cbd5e1;
+  border-radius: .5rem; font: inherit; box-sizing: border-box;
+}
+.up-search:focus { outline: none; border-color: #1d4ed8; box-shadow: 0 0 0 3px rgba(29, 78, 216, .15); }
+.up-list {
+  max-height: 280px; overflow-y: auto; border: 1px solid #e2e8f0;
+  border-radius: .5rem; background: #fff;
+}
+.up-row { padding: .55rem .75rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; }
+.up-row:last-child { border-bottom: 0; }
+.up-row:hover, .up-row.is-highlighted { background: #eff6ff; }
+.up-row.is-selected { background: #dbeafe; }
+.up-row-main { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.up-name { font-weight: 600; color: #0f172a; font-size: .9rem; }
+.up-course { color: #64748b; font-size: .8rem; margin-top: .1rem; }
+.up-empty { padding: 1rem; text-align: center; color: #64748b; }
+.up-count { font-size: .8rem; color: #64748b; }
+.up-badge {
+  display: inline-block; padding: .1rem .5rem; border-radius: 999px;
+  font-size: .72rem; font-weight: 700; background: #e2e8f0; color: #334155;
+}
+.up-badge-admin { background: #fef3c7; color: #92400e; }
+.up-badge-docente { background: #dbeafe; color: #1e40af; }
+.up-badge-estudiante { background: #dcfce7; color: #166534; }

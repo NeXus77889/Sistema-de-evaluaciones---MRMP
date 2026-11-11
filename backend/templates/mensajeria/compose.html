@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load static %}
 
 {% block title %}Nuevo Mensaje — Mensajería Institucional{% endblock %}
 
@@ -13,7 +14,7 @@
 </div>
 
 <section class="data-section" style="max-width: 800px; margin: 0 auto;">
-  <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 1.25rem;">
+  <form method="post" enctype="multipart/form-data" class="compose-form" style="display: flex; flex-direction: column; gap: 1.25rem;">
     {% csrf_token %}
 
     {% if form.non_field_errors %}
@@ -125,3 +126,6 @@
 {% endif %}
 {% endblock %}
 
+{% block scripts %}
+<script src="{% static 'js/user_picker.js' %}"></script>
+{% endblock %}
