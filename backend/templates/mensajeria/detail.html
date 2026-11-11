@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+
+{% block title %}{{ mensaje.motivo }} — Mensajería{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Mensajería Institucional</span>
+    <h1>{{ mensaje.motivo }}</h1>
+    <p>Detalle del comunicado.</p>
+  </div>
+  <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <a class="button button-outline" href="{% if es_remitente %}{% url 'mensajeria:sent' %}{% else %}{% url 'mensajeria:inbox' %}{% endif %}">
+      &larr; Volver
+    </a>
+    {% if not es_remitente %}
+      <a class="button button-primary" href="{% url 'mensajeria:compose' %}?reply_to={{ mensaje.pk }}">
+        Responder
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<section class="data-section" style="margin-bottom: 2rem;">
+  <!-- Cabecera de metadatos -->
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; padding-bottom: 1.25rem; border-bottom: 1px solid #e2e8f0; margin-bottom: 1.5rem;">
+    <div>
+      <span style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; display: block;">De</span>
+      <strong style="color: #0f172a; font-size: 1rem;">{{ mensaje.remitente.get_full_name|default:mensaje.remitente.username }}</strong>
+      <span style="display: block; font-size: 0.82rem; color: #64748b;">{{ mensaje.remitente.get_rol_display }} &bull; {{ mensaje.remitente.email }}</span>
+    </div>
+
+    <div>
+      <span style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; display: block;">Para</span>
+      {% if mensaje.tipo_destino == 'CURSO' %}
+        <strong style="color: #0f172a; font-size: 1rem;">Curso: {{ mensaje.curso.nombre }}</strong>
+        <span style="display: block; font-size: 0.82rem; color: #64748b;">Comunicado grupal para todo el paralelo</span>
+      {% else %}
+        <strong style="color: #0f172a; font-size: 1rem;">{{ mensaje.destinatario.get_full_name|default:mensaje.destinatario.username }}</strong>
+        <span style="display: block; font-size: 0.82rem; color: #64748b;">{{ mensaje.destinatario.get_rol_display }} &bull; {{ mensaje.destinatario.email }}</span>
+      {% endif %}
+    </div>
+
+    <div>
+      <span style="font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; font-weight: 600; display: block;">Fecha de envío</span>
+      <strong style="color: #0f172a; font-size: 1rem;">{{ mensaje.fecha|date:"d/m/Y H:i" }}</strong>
+      <span style="display: block; font-size: 0.82rem; color: #64748b;">{{ mensaje.fecha|timesince }} atrás</span>
+    </div>
+  </div>
+
+  <!-- Estadísticas de lectura (si es remitente de curso) -->
+  {% if estadisticas_lectura %}
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1.5rem; display: flex; gap: 1.5rem; align-items: center; flex-wrap: wrap;">
+      <span style="font-size: 0.85rem; font-weight: 600; color: #334155;">Estado de lectura del curso:</span>
+      <span style="font-size: 0.85rem; color: #16a34a;">&check; {{ estadisticas_lectura.leidos }} leídos</span>
+      <span style="font-size: 0.85rem; color: #e11d48;">&bull; {{ estadisticas_lectura.pendientes }} pendientes</span>
+      <span style="font-size: 0.85rem; color: #64748b;">(Total: {{ estadisticas_lectura.total }} estudiantes)</span>
+    </div>
+  {% endif %}
+
+  <!-- Contenido del mensaje -->
+  <div style="line-height: 1.7; color: #334155; font-size: 1.02rem; white-space: pre-wrap; padding: 1rem 0; min-height: 120px;">{{ mensaje.cuerpo }}</div>
+
+  <!-- Archivo adjunto -->
+  {% if mensaje.adjunto %}
+    <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #e2e8f0;">
+      <span style="font-size: 0.82rem; font-weight: 600; color: #475569; display: block; margin-bottom: 0.5rem;">Archivo adjunto:</span>
+      <a href="{{ mensaje.adjunto.url }}" target="_blank" download class="button button-outline" style="display: inline-flex; align-items: center; gap: 0.5rem;">
+        <span>📎 Descargar adjunto</span>
+        <span style="font-size: 0.8rem; color: #64748b;">({{ mensaje.adjunto.name|slice:"-30:" }})</span>
+      </a>
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+

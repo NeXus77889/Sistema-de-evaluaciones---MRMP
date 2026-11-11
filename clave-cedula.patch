@@ -1,0 +1,259 @@
+cgit apply importar-personal.patch
+cd backend
+$env:DJANGO_SETTINGS_MODULE="config.test_settings"
+python manage.py test apps.usuarios apps.corediff --git a/backend/apps/evaluaciones/admin.py b/backend/apps/evaluaciones/admin.py
+index ee1c92c..aa3b338 100644
+--- a/backend/apps/evaluaciones/admin.py
++++ b/backend/apps/evaluaciones/admin.py
+@@ -256,12 +256,12 @@ class ImportNominaForm(forms.Form):
+ 
+ 
+ class ImportDocentesForm(forms.Form):
+-    archivo = forms.FileField(label="Archivo Excel o CSV")
++    archivo = forms.FileField(label="Archivo Excel (.xlsx, .xls) o CSV")
+ 
+     def clean_archivo(self):
+         archivo = self.cleaned_data["archivo"]
+-        if archivo.name.rsplit(".", 1)[-1].lower() not in {"xlsx", "csv"}:
+-            raise forms.ValidationError("Selecciona un archivo .xlsx o .csv.")
++        if archivo.name.rsplit(".", 1)[-1].lower() not in {"xlsx", "xls", "csv"}:
++            raise forms.ValidationError("Selecciona un archivo .xlsx, .xls o .csv.")
+         if archivo.size > 20 * 1024 * 1024:
+             raise forms.ValidationError("El archivo no puede superar 20 MB.")
+         return archivo
+diff --git a/backend/apps/usuarios/admin.py b/backend/apps/usuarios/admin.py
+index 3d909df..bd103c4 100644
+--- a/backend/apps/usuarios/admin.py
++++ b/backend/apps/usuarios/admin.py
+@@ -1,7 +1,6 @@
+ from django.contrib import admin
+ from django.contrib import messages
+ from django.contrib.auth.admin import UserAdmin
+-from django.utils.crypto import get_random_string
+ from django.contrib.admin import SimpleListFilter
+ 
+ # Importaciones relativas dentro del mismo módulo
+@@ -74,6 +73,7 @@ class CustomUserAdmin(UserAdmin):
+     search_fields = ("username", "first_name", "last_name", "email")
+     ordering = ("username",)
+     actions = ("reset_temporary_password",)
++    change_list_template = "admin/usuarios/user/change_list.html"
+     fieldsets = UserAdmin.fieldsets + (
+         ("Perfil", {"fields": ("rol", "identification", "debe_cambiar_password")}),
+     )
+@@ -159,17 +159,27 @@ class CustomUserAdmin(UserAdmin):
+     def full_name(self, user):
+         return user.get_full_name()
+ 
+-    @admin.action(description="Restablecer contraseña a clave temporal")
++    @admin.action(description="Restablecer contraseña a la cédula")
+     def reset_temporary_password(self, request, queryset):
+-        credentials = []
++        reset_count = 0
++        skipped = []
+         for user in queryset:
+-            temporary_password = get_random_string(14)
+-            user.set_password(temporary_password)
++            if not user.identification:
++                skipped.append(user.username)
++                continue
++            user.set_password(user.identification)
+             user.debe_cambiar_password = True
+             user.save(update_fields=["password", "debe_cambiar_password"])
+-            credentials.append(f"{user.username}: {temporary_password}")
++            reset_count += 1
+         self.message_user(
+             request,
+-            "Claves temporales: " + "; ".join(credentials),
+-            level=messages.WARNING,
+-        )
+\ No newline at end of file
++            f"{reset_count} contraseña(s) restablecida(s) a la cédula; "
++            "deberán cambiarla al ingresar.",
++            level=messages.SUCCESS,
++        )
++        if skipped:
++            self.message_user(
++                request,
++                "Sin cédula registrada (no restablecidos): " + ", ".join(skipped),
++                level=messages.WARNING,
++            )
+\ No newline at end of file
+diff --git a/backend/apps/usuarios/services.py b/backend/apps/usuarios/services.py
+index 0606b66..2c56ba0 100644
+--- a/backend/apps/usuarios/services.py
++++ b/backend/apps/usuarios/services.py
+@@ -8,7 +8,6 @@ import unicodedata
+ import xlrd
+ from django.db import transaction
+ from django.db.models import Q
+-from django.utils.crypto import get_random_string
+ from openpyxl import load_workbook
+ 
+ from apps.evaluaciones.models import AsignacionDocente, Curso, Materia
+@@ -610,7 +609,8 @@ def importar_nomina(source: BinaryIO, filename: str):
+                 Q(identification=record["identificacion"])
+                 | Q(username=record["identificacion"])
+             ).first()
+-            temporary_password = get_random_string(20)
++            temporary_password = record["identificacion"]
++            created_student = student is None
+             if student is None:
+                 student = User.objects.create_user(
+                     username=record["identificacion"],
+@@ -641,9 +641,6 @@ def importar_nomina(source: BinaryIO, filename: str):
+                 ]
+                 if record["email"]:
+                     update_fields.append("email")
+-                student.set_password(temporary_password)
+-                student.debe_cambiar_password = True
+-                update_fields.extend(("password", "debe_cambiar_password"))
+                 student.save(update_fields=update_fields)
+                 summary["estudiantes_actualizados"] += 1
+ 
+@@ -652,9 +649,10 @@ def importar_nomina(source: BinaryIO, filename: str):
+                 previous_course.estudiantes.remove(student)
+             curso.estudiantes.add(student)
+             summary["filas"] += 1
+-            summary["claves_temporales"].append(
+-                (record["identificacion"], temporary_password)
+-            )
++            if created_student:
++                summary["claves_temporales"].append(
++                    (record["identificacion"], temporary_password)
++                )
+             summary["reporte"].append(
+                 {
+                     "identificacion": record["identificacion"],
+@@ -663,7 +661,9 @@ def importar_nomina(source: BinaryIO, filename: str):
+                     "apellidos": record["apellidos"],
+                     "rol": "Estudiante",
+                     "curso": curso.nombre,
+-                    "clave_temporal": temporary_password,
++                    "clave_temporal": (
++                        temporary_password if created_student else "Sin cambios"
++                    ),
+                 }
+             )
+         except Exception as error:
+@@ -713,7 +713,8 @@ def importar_docentes(source: BinaryIO, filename: str):
+                 teacher = User.objects.select_for_update().filter(
+                     Q(identification=identification) | Q(username=identification)
+                 ).first()
+-                temporary_password = get_random_string(20)
++                temporary_password = identification
++                created_teacher = teacher is None
+                 if teacher is None:
+                     teacher = User.objects.create_user(
+                         username=identification,
+@@ -733,8 +734,6 @@ def importar_docentes(source: BinaryIO, filename: str):
+                     teacher.email = record["email"]
+                     teacher.identification = identification
+                     teacher.rol = User.Role.TEACHER
+-                    teacher.set_password(temporary_password)
+-                    teacher.debe_cambiar_password = True
+                     teacher.save(
+                         update_fields=(
+                             "first_name",
+@@ -743,8 +742,6 @@ def importar_docentes(source: BinaryIO, filename: str):
+                             "email",
+                             "identification",
+                             "rol",
+-                            "password",
+-                            "debe_cambiar_password",
+                         )
+                     )
+                     summary["docentes_actualizados"] += 1
+@@ -758,14 +755,17 @@ def importar_docentes(source: BinaryIO, filename: str):
+                         "apellidos": record["apellidos"],
+                         "rol": "Docente",
+                         "curso": "",
+-                        "clave_temporal": temporary_password,
++                        "clave_temporal": (
++                            temporary_password if created_teacher else "Sin cambios"
++                        ),
+                     },
+                     "courses": [],
+                 }
+                 imported_teachers[identification] = imported_teacher
+-                summary["claves_temporales"].append(
+-                    (identification, temporary_password)
+-                )
++                if created_teacher:
++                    summary["claves_temporales"].append(
++                        (identification, temporary_password)
++                    )
+                 summary["reporte"].append(imported_teacher["report"])
+ 
+             for subject, course in assignment_pairs:
+diff --git a/backend/apps/usuarios/tests.py b/backend/apps/usuarios/tests.py
+index 781c540..e186b02 100644
+--- a/backend/apps/usuarios/tests.py
++++ b/backend/apps/usuarios/tests.py
+@@ -3,7 +3,6 @@ from io import BytesIO
+ from io import StringIO
+ from tempfile import NamedTemporaryFile
+ from types import SimpleNamespace
+-from unittest.mock import patch
+ 
+ from django.contrib import admin as django_admin
+ from django.contrib.auth.hashers import check_password
+@@ -313,6 +312,7 @@ class NominaImportTests(TestCase):
+         self.assertEqual(teacher.username, "0123456789")
+         self.assertEqual(teacher.rol, User.Role.TEACHER)
+         self.assertTrue(teacher.debe_cambiar_password)
++        self.assertTrue(check_password("0123456789", teacher.password))
+         self.assertEqual(teacher.first_name, "ANA MARIA")
+         self.assertEqual(teacher.last_name, "LOPEZ PEREZ")
+         assignments = set(
+@@ -434,14 +434,32 @@ class NominaImportTests(TestCase):
+         source = make_workbook(
+             [["1002", "Luis", "Díaz", "luis@example.com", "2026A", "Curso 2026"]]
+         )
+-        with patch("apps.usuarios.services.get_random_string", return_value="Temporary!234"):
+-            summary = importar_nomina(source, "nomina.xlsx")
++        summary = importar_nomina(source, "nomina.xlsx")
+         created_student = User.objects.get(identification="1002")
+         self.assertEqual(created_student.rol, User.Role.STUDENT)
+         self.assertTrue(created_student.debe_cambiar_password)
+-        self.assertNotEqual(created_student.password, "Temporary!234")
+-        self.assertTrue(check_password("Temporary!234", created_student.password))
+-        self.assertEqual(summary["claves_temporales"], [("1002", "Temporary!234")])
++        self.assertNotEqual(created_student.password, "1002")
++        self.assertTrue(check_password("1002", created_student.password))
++        self.assertEqual(summary["claves_temporales"], [("1002", "1002")])
++
++    def test_reimport_does_not_reset_existing_password(self):
++        student = User.objects.create_user(
++            username="1003",
++            email="m@example.com",
++            password="ChangedStrongPass!234",
++            identification="1003",
++            debe_cambiar_password=False,
++        )
++        source = make_workbook(
++            [["1003", "Mara", "Ruiz", "m@example.com", "2026A", "Curso 2026"]]
++        )
++        summary = importar_nomina(source, "nomina.xlsx")
++
++        student.refresh_from_db()
++        self.assertTrue(check_password("ChangedStrongPass!234", student.password))
++        self.assertFalse(student.debe_cambiar_password)
++        self.assertEqual(summary["claves_temporales"], [])
++        self.assertEqual(summary["reporte"][0]["clave_temporal"], "Sin cambios")
+ 
+     def test_course_import_page_uses_shared_import_service(self):
+         admin_user = User.objects.create_superuser(
+diff --git a/backend/templates/admin/usuarios/user/change_list.html b/backend/templates/admin/usuarios/user/change_list.html
+new file mode 100644
+index 0000000..03de4dd
+--- /dev/null
++++ b/backend/templates/admin/usuarios/user/change_list.html
+@@ -0,0 +1,7 @@
++{% extends "admin/change_list.html" %}
++{% load i18n %}
++
++{% block object-tools-items %}
++  <li><a href="{% url 'admin:evaluaciones_curso_importar_docentes' %}">Importar docentes</a></li>
++  {{ block.super }}
++{% endblock %}

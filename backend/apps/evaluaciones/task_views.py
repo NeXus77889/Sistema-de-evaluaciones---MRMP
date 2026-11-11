@@ -2,7 +2,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
+from django.db import models, transaction
 from django.http import Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -15,8 +15,19 @@ from apps.evaluaciones.forms import (
     InsumoCalificacionForm,
     TareaForm,
 )
+from apps.evaluaciones.grading_config import (
+    PESO_ACTIVIDADES_TRIMESTRE,
+    PESO_EVALUACION_PARCIAL,
+    PESO_EXAMEN_FINAL,
+    PESO_INSUMO_1,
+    PESO_INSUMO_2,
+    PESO_TRIMESTRE_1,
+    PESO_TRIMESTRE_2,
+    PESO_TRIMESTRE_3,
+)
 from apps.evaluaciones.models import (
     AsignacionDocente,
+    ControlParcial,
     Curso,
     EntregaTarea,
     InsumoCalificacion,
@@ -98,9 +109,16 @@ def docente_tarea_form(request, tarea_id=None):
         raise PermissionDenied("Acceso restringido para docentes.")
 
     user = request.user
+    if user.rol == "ADMIN":
+        messages.warning(
+            request,
+            "Los administradores supervisan y auditan las tareas; su creación y edición corresponde a los docentes.",
+        )
+        return redirect("docente-tareas-list")
+
     tarea = None
     if tarea_id:
-        if user.is_superuser or user.rol == "ADMIN":
+        if user.is_superuser:
             tarea = get_object_or_404(Tarea, pk=tarea_id)
         else:
             tarea = get_object_or_404(Tarea, pk=tarea_id, docente=user)
@@ -139,24 +157,52 @@ def docente_tarea_detalle(request, tarea_id):
     else:
         tarea = get_object_or_404(Tarea.objects.select_related("curso", "materia", "docente"), pk=tarea_id, docente=user)
 
+    es_admin = (user.rol == "ADMIN")
+    parcial_habilitado = ControlParcial.es_habilitado(tarea.trimestre, tarea.parcial)
+
     # Procesar calificación individual por POST
-    if request.method == "POST" and "calificar_entrega_id" in request.POST:
+    if request.method == "POST" and ("calificar_entrega_id" in request.POST or "calificar_estudiante_id" in request.POST):
+        if es_admin:
+            messages.error(request, "Los administradores supervisan las tareas pero no pueden calificar entregas.")
+            return redirect("docente-tarea-detalle", tarea_id=tarea.pk)
+
+        if not parcial_habilitado:
+            messages.error(
+                request,
+                f"El Trimestre {tarea.trimestre} - Parcial {tarea.parcial} está finalizado o aún no habilitado por la administración. No es posible ingresar calificaciones.",
+            )
+            return redirect("docente-tarea-detalle", tarea_id=tarea.pk)
+
         entrega_id = request.POST.get("calificar_entrega_id")
-        entrega = get_object_or_404(EntregaTarea, pk=entrega_id, tarea=tarea)
+        estudiante_id = request.POST.get("calificar_estudiante_id")
+        if entrega_id:
+            entrega = get_object_or_404(EntregaTarea, pk=entrega_id, tarea=tarea)
+        else:
+            estudiante = get_object_or_404(User, pk=estudiante_id, rol=User.Role.STUDENT)
+            entrega, _ = EntregaTarea.objects.get_or_create(tarea=tarea, estudiante=estudiante)
+
         calif_val = request.POST.get("calificacion", "").strip()
         retro = request.POST.get("retroalimentacion", "").strip()
-        try:
-            val_dec = Decimal(calif_val.replace(",", "."))
-            if 0.00 <= val_dec <= 10.00:
-                entrega.calificacion = val_dec
-                entrega.retroalimentacion = retro
-                entrega.fecha_calificacion = timezone.now()
-                entrega.save()
-                messages.success(request, f"Calificación guardada para {entrega.estudiante.get_full_name()}.")
-            else:
-                messages.error(request, "La calificación debe estar entre 0.00 y 10.00.")
-        except (InvalidOperation, ValueError):
-            messages.error(request, "Valor de calificación no válido.")
+
+        if calif_val == "":
+            entrega.calificacion = None
+            entrega.retroalimentacion = retro
+            entrega.fecha_calificacion = None
+            entrega.save()
+            messages.success(request, f"Calificación eliminada para {entrega.estudiante.get_full_name()}.")
+        else:
+            try:
+                val_dec = Decimal(calif_val.replace(",", "."))
+                if Decimal("0.00") <= val_dec <= Decimal("10.00"):
+                    entrega.calificacion = val_dec
+                    entrega.retroalimentacion = retro
+                    entrega.fecha_calificacion = timezone.now()
+                    entrega.save()
+                    messages.success(request, f"Calificación guardada para {entrega.estudiante.get_full_name()}.")
+                else:
+                    messages.error(request, "La calificación debe estar entre 0.00 y 10.00.")
+            except (InvalidOperation, ValueError):
+                messages.error(request, "Valor de calificación no válido.")
         return redirect("docente-tarea-detalle", tarea_id=tarea.pk)
 
     # Construir Matriz de Control de Estudiantes del Curso
@@ -198,6 +244,8 @@ def docente_tarea_detalle(request, tarea_id):
         "conteo_atrasados": conteo_atrasados,
         "conteo_pendientes": conteo_pendientes,
         "conteo_calificados": conteo_calificados,
+        "es_admin": es_admin,
+        "parcial_habilitado": parcial_habilitado,
     })
 
 
@@ -278,19 +326,21 @@ def estudiante_tarea_entrega(request, tarea_id):
 
 
 # ==============================================================================
-# DOCENTE: SISTEMA DE CALIFICACIONES INSTITUCIONAL (ESTILO RUNACHAY)
+# DOCENTE: SISTEMA DE CALIFICACIONES INSTITUCIONAL
 # ==============================================================================
 
 @login_required
 def docente_calificaciones_matrix(request):
     """
-    Sábana de calificaciones institucional (Estilo Runachay):
-    - Insumo 1 (Tareas / Actividades)
-    - Insumo 2 (Lecciones / Proyectos)
+    Sábana de calificaciones institucional:
+    - 3 Trimestres, cada uno con Primer y Segundo Parcial
+    - Examen Final institucional configurable (ej. 20%)
+    - Insumo 1 (Tareas / Actividades individuales)
+    - Insumo 2 (Lecciones / Proyectos grupales)
     - Evaluación Parcial
-    - Promedio Ponderado en tiempo real
-    - Carga masiva de notas
-    - Publicar Calificaciones para los alumnos
+    - Guardado por celda en tiempo real (AJAX / fetch) con persistencia y sin pérdida de datos
+    - Sincronización automática bidireccional con tareas
+    - Publicar calificaciones para estudiantes
     """
     if not _is_docente(request.user):
         raise PermissionDenied("Acceso restringido para docentes.")
@@ -304,6 +354,20 @@ def docente_calificaciones_matrix(request):
     cursos_asignados = sorted(Curso.objects.filter(asignaciones__in=assignments).distinct(), key=course_sort_key)
     curso_id = request.GET.get("curso")
     materia_id = request.GET.get("materia")
+
+    try:
+        selected_trimestre = int(request.GET.get("trimestre", 1))
+    except (ValueError, TypeError):
+        selected_trimestre = 1
+    if selected_trimestre not in (1, 2, 3):
+        selected_trimestre = 1
+
+    try:
+        selected_parcial = int(request.GET.get("parcial", 1))
+    except (ValueError, TypeError):
+        selected_parcial = 1
+    if selected_parcial not in (1, 2):
+        selected_parcial = 1
 
     selected_curso = None
     selected_materia = None
@@ -322,7 +386,6 @@ def docente_calificaciones_matrix(request):
         try:
             selected_materia = Materia.objects.get(pk=materia_id)
             if not (user.is_superuser or user.rol == "ADMIN"):
-                # Strict RBAC verification
                 has_access = AsignacionDocente.objects.filter(
                     docente=user,
                     curso=selected_curso,
@@ -334,18 +397,126 @@ def docente_calificaciones_matrix(request):
         except Materia.DoesNotExist:
             selected_materia = None
 
-    # Procesar guardado masivo de notas o publicación
+    es_admin = (user.rol == User.Role.ADMINISTRATOR)
+    parcial_habilitado = ControlParcial.es_habilitado(selected_trimestre, selected_parcial)
+
+    # Procesar guardado AJAX / celda individual o guardado masivo
     if request.method == "POST" and selected_curso and selected_materia:
         action = request.POST.get("action", "save_grades")
 
+        # El Administrador solo audita, no califica
+        if es_admin:
+            if action == "save_single_grade" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse(
+                    {"status": "error", "message": "Los administradores tienen acceso de solo lectura y supervisión en calificaciones."},
+                    status=403,
+                )
+            messages.warning(request, "Los administradores supervisan las calificaciones; los docentes asignados son quienes registran notas.")
+            return redirect(
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            )
+
+        # Si el parcial está cerrado / no habilitado por la administración
+        if not parcial_habilitado:
+            if action == "save_single_grade" or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return JsonResponse(
+                    {
+                        "status": "error",
+                        "message": f"El Trimestre {selected_trimestre} - Parcial {selected_parcial} está finalizado o no habilitado para calificaciones por la administración.",
+                    },
+                    status=403,
+                )
+            messages.error(
+                request,
+                f"El Trimestre {selected_trimestre} - Parcial {selected_parcial} se encuentra finalizado o no habilitado por la administración. No se pueden ingresar ni adelantar calificaciones.",
+            )
+            return redirect(
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            )
+
+        # Guardado individual por celda (AJAX)
+        if action == "save_single_grade" or (
+            request.headers.get("X-Requested-With") == "XMLHttpRequest"
+            and "insumo_id" in request.POST
+        ):
+            insumo_id = request.POST.get("insumo_id")
+            estudiante_id = request.POST.get("estudiante_id")
+            raw_val = request.POST.get("nota", "").strip()
+
+            insumo = get_object_or_404(
+                InsumoCalificacion,
+                pk=insumo_id,
+                curso=selected_curso,
+                materia=selected_materia,
+            )
+            estudiante = get_object_or_404(User, pk=estudiante_id, rol=User.Role.STUDENT)
+
+            if raw_val == "":
+                RegistroCalificacion.objects.filter(
+                    insumo=insumo,
+                    estudiante=estudiante,
+                ).delete()
+                nota_guardada = None
+            else:
+                try:
+                    nota_dec = Decimal(raw_val.replace(",", "."))
+                    if not (Decimal("0.00") <= nota_dec <= Decimal("10.00")):
+                        return JsonResponse(
+                            {"status": "error", "message": "La nota debe estar entre 0.00 y 10.00."},
+                            status=400,
+                        )
+                    RegistroCalificacion.objects.update_or_create(
+                        insumo=insumo,
+                        estudiante=estudiante,
+                        defaults={"nota": nota_dec},
+                    )
+                    nota_guardada = str(nota_dec)
+                except (InvalidOperation, ValueError):
+                    return JsonResponse(
+                        {"status": "error", "message": "Valor de calificación no válido."},
+                        status=400,
+                    )
+
+            # Recalcular promedio del parcial actual para el estudiante
+            insumos_parcial = InsumoCalificacion.objects.filter(
+                curso=selected_curso,
+                materia=selected_materia,
+                trimestre=selected_trimestre,
+                parcial=selected_parcial,
+            ).exclude(tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL)
+
+            regs = {
+                r.insumo_id: r.nota
+                for r in RegistroCalificacion.objects.filter(
+                    insumo__in=insumos_parcial, estudiante=estudiante
+                )
+            }
+            suma_ponderada = Decimal("0.00")
+            suma_pesos = Decimal("0.00")
+            for ins in insumos_parcial:
+                nota = regs.get(ins.pk)
+                if nota is not None:
+                    suma_ponderada += nota * ins.ponderacion
+                    suma_pesos += ins.ponderacion
+
+            promedio = round(suma_ponderada / suma_pesos, 2) if suma_pesos > 0 else None
+
+            return JsonResponse({
+                "status": "ok",
+                "message": "Guardado",
+                "nota": nota_guardada if nota_guardada is not None else "",
+                "promedio": str(promedio) if promedio is not None else "—",
+            })
+
         if action == "publish_all":
-            # Publicar todos los insumos de esta materia y curso
             InsumoCalificacion.objects.filter(
                 curso=selected_curso,
                 materia=selected_materia,
             ).update(publicado=True)
             messages.success(request, "Las calificaciones han sido publicadas oficialmente para los estudiantes.")
-            return redirect(f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}")
+            return redirect(
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            )
 
         elif action == "unpublish_all":
             InsumoCalificacion.objects.filter(
@@ -353,17 +524,22 @@ def docente_calificaciones_matrix(request):
                 materia=selected_materia,
             ).update(publicado=False)
             messages.info(request, "Las calificaciones se han ocultado (modo borrador).")
-            return redirect(f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}")
+            return redirect(
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            )
 
         elif action == "save_grades":
-            # Guardado masivo de matriz
+            # Guardado de la sábana visible
             with transaction.atomic():
-                insumos = InsumoCalificacion.objects.filter(
+                insumos_visibles = InsumoCalificacion.objects.filter(
                     curso=selected_curso,
                     materia=selected_materia,
+                ).filter(
+                    models.Q(trimestre=selected_trimestre, parcial=selected_parcial)
+                    | models.Q(tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL)
                 )
                 estudiantes = selected_curso.estudiantes.filter(is_active=True)
-                for ins in insumos:
+                for ins in insumos_visibles:
                     for est in estudiantes:
                         key = f"grade_{ins.pk}_{est.pk}"
                         if key in request.POST:
@@ -371,7 +547,7 @@ def docente_calificaciones_matrix(request):
                             if raw_val:
                                 try:
                                     nota_dec = Decimal(raw_val.replace(",", "."))
-                                    if 0.00 <= nota_dec <= 10.00:
+                                    if Decimal("0.00") <= nota_dec <= Decimal("10.00"):
                                         RegistroCalificacion.objects.update_or_create(
                                             insumo=ins,
                                             estudiante=est,
@@ -380,83 +556,136 @@ def docente_calificaciones_matrix(request):
                                 except (InvalidOperation, ValueError):
                                     pass
                             else:
-                                # Si se deja en blanco, eliminar registro si existía
-                                RegistroCalificacion.objects.filter(insumo=ins, estudiante=est).delete()
+                                RegistroCalificacion.objects.filter(
+                                    insumo=ins,
+                                    estudiante=est,
+                                ).delete()
 
             messages.success(request, "Sábana de calificaciones guardada correctamente.")
-            return redirect(f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}")
+            scroll_pos = request.POST.get("scroll_pos", "")
+            redirect_url = f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            if scroll_pos:
+                redirect_url += f"&scroll_pos={scroll_pos}"
+            return redirect(redirect_url)
 
         elif action == "create_insumo":
             nombre_ins = request.POST.get("nombre", "").strip()
             tipo_ins = request.POST.get("tipo", InsumoCalificacion.TIPO_INSUMO_1)
             ponderacion_val = request.POST.get("ponderacion", "35.00").strip()
-            periodo_val = request.POST.get("periodo", "Primer Quimestre - Parcial 1").strip()
+            trim_ins = int(request.POST.get("trimestre", selected_trimestre))
+            parc_ins = int(request.POST.get("parcial", selected_parcial))
+            asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
+            docente_para_insumo = (
+                user if user.rol == "DOCENTE"
+                else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
+            )
             try:
                 pond_dec = Decimal(ponderacion_val.replace(",", "."))
                 InsumoCalificacion.objects.create(
                     curso=selected_curso,
                     materia=selected_materia,
-                    docente=user,
+                    docente=docente_para_insumo,
                     nombre=nombre_ins or f"Insumo {tipo_ins}",
                     tipo=tipo_ins,
+                    trimestre=trim_ins,
+                    parcial=parc_ins,
                     ponderacion=pond_dec,
-                    periodo=periodo_val,
+                    periodo=f"Trimestre {trim_ins} - Parcial {parc_ins}",
                 )
                 messages.success(request, "Nuevo insumo académico creado.")
             except (InvalidOperation, ValueError) as err:
                 messages.error(request, f"Error al crear insumo: {err}")
-            return redirect(f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}")
+            return redirect(
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            )
 
-    # Si hay curso y materia seleccionados, cargar o inicializar insumos por defecto (Runachay)
-    insumos = []
+    insumos_parcial = []
+    insumo_examen_final = None
     matriz_estudiantes = []
     todos_publicados = False
 
     if selected_curso and selected_materia:
-        insumos = list(
+        # Cargar insumos regulares del trimestre y parcial elegidos
+        insumos_parcial = list(
             InsumoCalificacion.objects.filter(
                 curso=selected_curso,
                 materia=selected_materia,
-            ).order_by("tipo", "created_at")
+                trimestre=selected_trimestre,
+                parcial=selected_parcial,
+            ).exclude(tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL).order_by("tipo", "created_at")
         )
 
-        # Si no existen insumos aún, inicializar la estructura institucional Runachay:
-        # Insumo 1 (35%), Insumo 2 (35%), Evaluación (30%)
-        if not insumos:
+        # Cargar insumo de Examen Final
+        insumo_examen_final = InsumoCalificacion.objects.filter(
+            curso=selected_curso,
+            materia=selected_materia,
+            tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL,
+        ).first()
+
+        asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
+        docente_asignado = (
+            user if user.rol == "DOCENTE"
+            else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
+        )
+
+        # Si no existen insumos en este parcial, crear la estructura inicial predeterminada
+        if not insumos_parcial:
             with transaction.atomic():
                 i1 = InsumoCalificacion.objects.create(
                     curso=selected_curso,
                     materia=selected_materia,
-                    docente=user if user.rol == "DOCENTE" else assignments.filter(curso=selected_curso, materia=selected_materia).first().docente,
+                    docente=docente_asignado,
                     nombre="Insumo 1 (Tareas / Actividades individuales)",
                     tipo=InsumoCalificacion.TIPO_INSUMO_1,
-                    ponderacion=Decimal("35.00"),
-                    periodo="Primer Quimestre - Parcial 1",
+                    trimestre=selected_trimestre,
+                    parcial=selected_parcial,
+                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
+                    ponderacion=PESO_INSUMO_1,
                 )
                 i2 = InsumoCalificacion.objects.create(
                     curso=selected_curso,
                     materia=selected_materia,
-                    docente=user if user.rol == "DOCENTE" else assignments.filter(curso=selected_curso, materia=selected_materia).first().docente,
+                    docente=docente_asignado,
                     nombre="Insumo 2 (Lecciones / Proyectos grupales)",
                     tipo=InsumoCalificacion.TIPO_INSUMO_2,
-                    ponderacion=Decimal("35.00"),
-                    periodo="Primer Quimestre - Parcial 1",
+                    trimestre=selected_trimestre,
+                    parcial=selected_parcial,
+                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
+                    ponderacion=PESO_INSUMO_2,
                 )
                 ie = InsumoCalificacion.objects.create(
                     curso=selected_curso,
                     materia=selected_materia,
-                    docente=user if user.rol == "DOCENTE" else assignments.filter(curso=selected_curso, materia=selected_materia).first().docente,
+                    docente=docente_asignado,
                     nombre="Evaluación del Parcial",
                     tipo=InsumoCalificacion.TIPO_EVALUACION,
-                    ponderacion=Decimal("30.00"),
-                    periodo="Primer Quimestre - Parcial 1",
+                    trimestre=selected_trimestre,
+                    parcial=selected_parcial,
+                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
+                    ponderacion=PESO_EVALUACION_PARCIAL,
                 )
-                insumos = [i1, i2, ie]
+                insumos_parcial = [i1, i2, ie]
 
-        todos_publicados = all(i.publicado for i in insumos) if insumos else False
+        # Asegurar existencia del Examen Final si no existe
+        if not insumo_examen_final:
+            insumo_examen_final = InsumoCalificacion.objects.create(
+                curso=selected_curso,
+                materia=selected_materia,
+                docente=docente_asignado,
+                nombre="Examen Final Institucional",
+                tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL,
+                trimestre=3,
+                parcial=2,
+                periodo="Examen Final",
+                ponderacion=PESO_EXAMEN_FINAL,
+            )
 
-        # Cargar todos los registros existentes para este conjunto de insumos
-        registros = RegistroCalificacion.objects.filter(insumo__in=insumos).select_related("insumo", "estudiante")
+        todos_insumos = insumos_parcial + ([insumo_examen_final] if insumo_examen_final else [])
+        todos_publicados = all(i.publicado for i in todos_insumos) if todos_insumos else False
+
+        registros = RegistroCalificacion.objects.filter(
+            insumo__in=todos_insumos
+        ).select_related("insumo", "estudiante")
         reg_map = {(r.insumo_id, r.estudiante_id): r.nota for r in registros}
 
         estudiantes = selected_curso.estudiantes.filter(is_active=True).order_by("last_name", "first_name")
@@ -466,7 +695,7 @@ def docente_calificaciones_matrix(request):
             suma_ponderada = Decimal("0.00")
             suma_pesos = Decimal("0.00")
 
-            for ins in insumos:
+            for ins in insumos_parcial:
                 nota = reg_map.get((ins.pk, est.pk))
                 notas_insumos.append({
                     "insumo": ins,
@@ -476,15 +705,14 @@ def docente_calificaciones_matrix(request):
                     suma_ponderada += nota * ins.ponderacion
                     suma_pesos += ins.ponderacion
 
-            if suma_pesos > 0:
-                promedio_ponderado = round(suma_ponderada / suma_pesos, 2)
-            else:
-                promedio_ponderado = None
+            promedio_parcial = round(suma_ponderada / suma_pesos, 2) if suma_pesos > 0 else None
+            nota_examen_final = reg_map.get((insumo_examen_final.pk, est.pk)) if insumo_examen_final else None
 
             matriz_estudiantes.append({
                 "estudiante": est,
                 "notas_insumos": notas_insumos,
-                "promedio": promedio_ponderado,
+                "promedio": promedio_parcial,
+                "nota_examen_final": nota_examen_final,
             })
 
     return render(request, "docente/calificaciones_matrix.html", {
@@ -492,21 +720,29 @@ def docente_calificaciones_matrix(request):
         "materias_asignadas": materias_asignadas,
         "selected_curso": selected_curso,
         "selected_materia": selected_materia,
-        "insumos": insumos,
+        "selected_trimestre": selected_trimestre,
+        "selected_parcial": selected_parcial,
+        "insumos": insumos_parcial,
+        "insumo_examen_final": insumo_examen_final,
         "matriz_estudiantes": matriz_estudiantes,
         "todos_publicados": todos_publicados,
+        "peso_examen_final": PESO_EXAMEN_FINAL,
+        "es_admin": es_admin,
+        "parcial_habilitado": parcial_habilitado,
     })
 
 
 # ==============================================================================
-# ESTUDIANTE: BOLETÍN DE CALIFICACIONES INSTITUCIONAL (ESTILO RUNACHAY)
+# ESTUDIANTE: BOLETÍN DE CALIFICACIONES INSTITUCIONAL
 # ==============================================================================
 
 @login_required
 def estudiante_calificaciones_boletin(request):
     """
-    Portal del Estudiante: Boletín institucional de solo lectura con detalle de
-    calificaciones por materia, organizadas por Insumos y Evaluación Parcial (Runachay).
+    Portal del Estudiante: Boletín institucional de solo lectura estructurado por:
+    - 3 Trimestres, cada uno con Primer y Segundo Parcial
+    - Examen Final Institucional
+    - Promedio Anual ponderado
     Solo muestra calificaciones explícitamente publicadas por el docente.
     """
     if not _is_estudiante(request.user):
@@ -515,20 +751,21 @@ def estudiante_calificaciones_boletin(request):
     user = request.user
     cursos = user.cursos.all()
 
-    # Obtener todas las materias asociadas a los cursos del estudiante
     materias_boletin = []
 
     for curso in cursos:
-        # Materias asignadas activamente a este curso
-        materias_curso = Materia.objects.filter(asignaciones__curso=curso, asignaciones__activo=True).distinct()
+        materias_curso = Materia.objects.filter(
+            asignaciones__curso=curso,
+            asignaciones__activo=True,
+        ).distinct()
+
         for mat in materias_curso:
-            # Buscar insumos publicados para este curso y materia
             insumos = list(
                 InsumoCalificacion.objects.filter(
                     curso=curso,
                     materia=mat,
                     publicado=True,
-                ).order_by("tipo", "created_at")
+                ).order_by("trimestre", "parcial", "tipo", "created_at")
             )
 
             if not insumos:
@@ -536,35 +773,95 @@ def estudiante_calificaciones_boletin(request):
 
             registros = {
                 r.insumo_id: r.nota
-                for r in RegistroCalificacion.objects.filter(insumo__in=insumos, estudiante=user)
+                for r in RegistroCalificacion.objects.filter(
+                    insumo__in=insumos, estudiante=user
+                )
             }
 
-            insumos_detalle = []
-            suma_ponderada = Decimal("0.00")
-            suma_pesos = Decimal("0.00")
+            trimestres_data = []
+            promedios_trimestres = []
 
-            for ins in insumos:
-                nota = registros.get(ins.pk)
-                insumos_detalle.append({
-                    "nombre": ins.nombre,
-                    "tipo": ins.get_tipo_display(),
-                    "ponderacion": ins.ponderacion,
-                    "nota": nota,
+            for t_num in (1, 2, 3):
+                parciales_data = []
+                promedios_parciales = []
+
+                for p_num in (1, 2):
+                    insumos_p = [
+                        i for i in insumos
+                        if i.trimestre == t_num and i.parcial == p_num and i.tipo != InsumoCalificacion.TIPO_EXAMEN_FINAL
+                    ]
+                    insumos_p_detalle = []
+                    suma_p = Decimal("0.00")
+                    pesos_p = Decimal("0.00")
+
+                    for ins in insumos_p:
+                        nota = registros.get(ins.pk)
+                        insumos_p_detalle.append({
+                            "nombre": ins.nombre,
+                            "tipo": ins.get_tipo_display(),
+                            "ponderacion": ins.ponderacion,
+                            "nota": nota,
+                        })
+                        if nota is not None:
+                            suma_p += nota * ins.ponderacion
+                            pesos_p += ins.ponderacion
+
+                    prom_p = round(suma_p / pesos_p, 2) if pesos_p > 0 else None
+                    if prom_p is not None:
+                        promedios_parciales.append(prom_p)
+
+                    parciales_data.append({
+                        "numero": p_num,
+                        "nombre": f"Parcial {p_num}",
+                        "insumos": insumos_p_detalle,
+                        "promedio": prom_p,
+                    })
+
+                prom_t = (
+                    round(sum(promedios_parciales) / len(promedios_parciales), 2)
+                    if promedios_parciales else None
+                )
+                if prom_t is not None:
+                    promedios_trimestres.append((t_num, prom_t))
+
+                trimestres_data.append({
+                    "numero": t_num,
+                    "nombre": f"Trimestre {t_num}",
+                    "parciales": parciales_data,
+                    "promedio": prom_t,
                 })
-                if nota is not None:
-                    suma_ponderada += nota * ins.ponderacion
-                    suma_pesos += ins.ponderacion
 
-            promedio = round(suma_ponderada / suma_pesos, 2) if suma_pesos > 0 else None
+            # Examen final publicado
+            insumo_final = next(
+                (i for i in insumos if i.tipo == InsumoCalificacion.TIPO_EXAMEN_FINAL),
+                None,
+            )
+            nota_examen_final = registros.get(insumo_final.pk) if insumo_final else None
 
-            # Estado cualitativo según escala ministerial (Runachay)
+            # Cálculo de promedio anual
+            promedio_anual = None
+            if promedios_trimestres:
+                peso_map = {1: PESO_TRIMESTRE_1, 2: PESO_TRIMESTRE_2, 3: PESO_TRIMESTRE_3}
+                suma_trimestral = sum(prom * peso_map[t] for t, prom in promedios_trimestres)
+                pesos_trimestres = sum(peso_map[t] for t, _ in promedios_trimestres)
+                if pesos_trimestres > 0:
+                    prom_trimestres_base = suma_trimestral / pesos_trimestres
+                    if nota_examen_final is not None:
+                        promedio_anual = round(
+                            (prom_trimestres_base * (PESO_ACTIVIDADES_TRIMESTRE / 100))
+                            + (nota_examen_final * (PESO_EXAMEN_FINAL / 100)),
+                            2,
+                        )
+                    else:
+                        promedio_anual = round(prom_trimestres_base, 2)
+
             estado_cualitativo = ""
-            if promedio is not None:
-                if promedio >= Decimal("9.00"):
+            if promedio_anual is not None:
+                if promedio_anual >= Decimal("9.00"):
                     estado_cualitativo = "Domina los aprendizajes (DAR)"
-                elif promedio >= Decimal("7.00"):
+                elif promedio_anual >= Decimal("7.00"):
                     estado_cualitativo = "Alcanza los aprendizajes (AAR)"
-                elif promedio >= Decimal("4.01"):
+                elif promedio_anual >= Decimal("4.01"):
                     estado_cualitativo = "Próximo a alcanzar (PAAR)"
                 else:
                     estado_cualitativo = "No alcanza los aprendizajes (NAAR)"
@@ -572,8 +869,9 @@ def estudiante_calificaciones_boletin(request):
             materias_boletin.append({
                 "curso": curso,
                 "materia": mat,
-                "insumos": insumos_detalle,
-                "promedio": promedio,
+                "trimestres": trimestres_data,
+                "nota_examen_final": nota_examen_final,
+                "promedio_anual": promedio_anual,
                 "estado_cualitativo": estado_cualitativo,
             })
 
@@ -581,5 +879,6 @@ def estudiante_calificaciones_boletin(request):
         "materias_boletin": materias_boletin,
         "cursos": cursos,
         "fecha_actual": timezone.now(),
+        "peso_examen_final": PESO_EXAMEN_FINAL,
     })
 

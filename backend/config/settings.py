@@ -37,6 +37,7 @@ INSTALLED_APPS = [
     "apps.monitoreo.apps.MonitoreoConfig",
     "apps.reportes.apps.ReportesConfig",
     "apps.core.apps.CoreConfig",
+    "apps.mensajeria.apps.MensajeriaConfig",
 ]
 
 MIDDLEWARE = [
@@ -63,6 +64,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "apps.mensajeria.context_processors.unread_mensajes_count",
+                "apps.core.context_processors.evaluaciones_admin_context",
             ]
         },
     }

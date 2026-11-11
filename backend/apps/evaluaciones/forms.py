@@ -184,6 +184,8 @@ class TareaForm(forms.ModelForm):
             "materia",
             "titulo",
             "descripcion",
+            "trimestre",
+            "parcial",
             "fecha_entrega",
             "peso_porcentual",
             "archivo_adjunto",
@@ -251,10 +253,10 @@ class CalificarEntregaForm(forms.ModelForm):
 class InsumoCalificacionForm(forms.ModelForm):
     class Meta:
         model = InsumoCalificacion
-        fields = ["curso", "materia", "nombre", "tipo", "periodo", "ponderacion", "publicado"]
+        fields = ["curso", "materia", "nombre", "tipo", "trimestre", "parcial", "periodo", "ponderacion", "publicado"]
         widgets = {
             "ponderacion": forms.NumberInput(attrs={"step": "0.01", "min": "0.01", "max": "100"}),
-            "periodo": forms.TextInput(attrs={"placeholder": "Ej: Primer Quimestre - Parcial 1"}),
+            "periodo": forms.TextInput(attrs={"placeholder": "Ej: Trimestre 1 - Parcial 1"}),
         }
 
     def __init__(self, *args, docente=None, **kwargs):

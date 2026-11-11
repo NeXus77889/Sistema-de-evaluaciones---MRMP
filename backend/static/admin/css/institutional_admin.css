@@ -112,33 +112,40 @@ body {
   gap: 14px !important;
   text-decoration: none !important;
   color: #FFFFFF !important;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .institutional-logo-container {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 48px;
-  height: 48px;
+  width: 40px;
+  height: 40px;
   padding: 3px;
   background: #FFFFFF;
-  border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  box-sizing: border-box;
   flex-shrink: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
 }
 
 .institutional-logo-img,
 .admin-brand img {
   display: block;
-  max-width: 100%;
-  max-height: 100%;
+  height: 34px;
+  width: 34px;
+  max-height: 34px;
   object-fit: contain;
+  flex-shrink: 0;
 }
 
 .institutional-text-container {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .institutional-school-name {
@@ -148,6 +155,9 @@ body {
   color: #FFFFFF !important;
   text-transform: uppercase;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .institutional-system-title {
@@ -155,6 +165,9 @@ body {
   font-weight: 500 !important;
   color: #93C5FD !important;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #user-tools {
@@ -731,6 +744,35 @@ body {
 
 #changelist .results tbody tr:hover {
   background: #F8FAFC !important;
+}
+
+/* Columna y botones de Informe PDF en changelist (evita que se quiebre o se vea en escalera) */
+.results th.column-informe_pdf,
+.results td.field-informe_pdf,
+.results th.column-informe_asociado,
+.results td.field-informe_asociado {
+  white-space: nowrap !important;
+  text-align: center !important;
+  min-width: 140px !important;
+}
+
+.results td.field-informe_pdf a,
+.results td a.button,
+.field-informe_pdf a.button,
+td.field-informe_pdf a {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  text-decoration: none !important;
+  padding: 6px 14px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  line-height: 1.2 !important;
+  border-radius: 8px !important;
+  min-width: 120px !important;
+  box-sizing: border-box !important;
+  text-align: center !important;
 }
 
 #changelist-filter {

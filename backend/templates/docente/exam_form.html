@@ -1,27 +1,338 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}{% endblock %}
+
+{% block extra_head %}
+<style>
+  .editor-grid-container {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.25rem 1.5rem;
+  }
+  .form-card-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .form-card-field.col-full {
+    grid-column: 1 / -1;
+  }
+  .form-card-field label {
+    font-size: 0.82rem;
+    font-weight: 700;
+    color: var(--forest);
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .form-card-field .field-help {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin: 0;
+  }
+  .form-card-field .field-error {
+    color: var(--rust);
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-top: 0.25rem;
+  }
+  .form-card-field input[type="text"],
+  .form-card-field input[type="number"],
+  .form-card-field input[type="datetime-local"],
+  .form-card-field select,
+  .form-card-field textarea {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 12px;
+    border: 1px solid #CBD5E1;
+    border-radius: var(--radius-control);
+    color: var(--ink);
+    background: #fff;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .form-card-field input:focus,
+  .form-card-field select:focus,
+  .form-card-field textarea:focus {
+    border-color: var(--blue);
+    outline: 2px solid rgba(37, 99, 235, 0.2);
+  }
+  .checkbox-row-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #f8fafc;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-control);
+  }
+  .checkbox-inline-label {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--ink);
+    cursor: pointer;
+    margin: 0;
+  }
+  .checkbox-inline-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--forest);
+    margin: 0;
+    cursor: pointer;
+  }
+  .exam-form-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+  }
+  @media (max-width: 820px) {
+    .editor-grid-container {
+      grid-template-columns: 1fr;
+    }
+    .form-card-field.col-full {
+      grid-column: 1;
+    }
+    .exam-form-footer {
+      flex-direction: column-reverse;
+      gap: 0.75rem;
+    }
+    .exam-form-footer .button,
+    .exam-form-footer a {
+      width: 100%;
+      text-align: center;
+      justify-content: center;
+    }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="page-heading"><div><span class="eyebrow">Diseño de prueba</span><h1>{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}</h1><p>Define la disponibilidad, asignación y preguntas.</p></div><a class="button button-outline" href="{% url 'dashboard' %}">Volver</a></div>
-<form method="post" id="exam-form" class="editor-form">{% csrf_token %}
-  {% if form.non_field_errors %}<div class="form-errors">{{ form.non_field_errors }}</div>{% endif %}
-  {% if form.assignment_notice %}<p class="assignment-notice" role="status">{{ form.assignment_notice }}</p>{% endif %}
-  <section class="form-section"><div class="section-heading"><div><span class="eyebrow">Configuración</span><h2>Detalles de la evaluación</h2></div></div><div class="form-grid">{{ form.as_p }}</div></section>
-  <section class="exam-preview" aria-live="polite" aria-label="Vista previa de la evaluación">
-    <div><span class="eyebrow">Vista previa</span><h2 id="preview-title">Nueva evaluación</h2></div>
-    <dl><div><dt>Materia</dt><dd id="preview-subject">Sin seleccionar</dd></div><div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div><div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div></dl>
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Diseño de prueba</span>
+    <h1>{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}</h1>
+    <p>Organiza los datos generales, disponibilidad y proctoring, y banco de preguntas.</p>
+  </div>
+  <a class="button button-outline" href="{% url 'dashboard' %}">Volver</a>
+</div>
+
+<form method="post" id="exam-form" class="editor-form">
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <div class="message error" role="alert">
+      {{ form.non_field_errors }}
+    </div>
+  {% endif %}
+
+  {% if form.assignment_notice %}
+    <p class="assignment-notice" role="status">{{ form.assignment_notice }}</p>
+  {% endif %}
+
+  <!-- SECCIÓN 1: DATOS GENERALES -->
+  <section class="form-section">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Sección 1</span>
+        <h2>Datos generales</h2>
+        <p>Título, asignatura asignada y cursos o paralelos que rendirán la evaluación.</p>
+      </div>
+    </div>
+    <div style="padding: 1.25rem 1.5rem;">
+      <div class="editor-grid-container">
+        <!-- Título -->
+        <div class="form-card-field col-full">
+          <label for="{{ form.title.id_for_label }}">Título de la evaluación *</label>
+          {{ form.title }}
+          {% if form.title.help_text %}<p class="field-help">{{ form.title.help_text }}</p>{% endif %}
+          {% if form.title.errors %}<div class="field-error">{{ form.title.errors }}</div>{% endif %}
+        </div>
+
+        <!-- Materia -->
+        <div class="form-card-field">
+          <label for="{{ form.materia.id_for_label }}">Materia / Asignatura *</label>
+          {{ form.materia }}
+          {% if form.materia.help_text %}<p class="field-help">{{ form.materia.help_text }}</p>{% endif %}
+          {% if form.materia.errors %}<div class="field-error">{{ form.materia.errors }}</div>{% endif %}
+        </div>
+
+        <!-- Campo oculto curso base -->
+        <div style="display: none;">
+          {{ form.curso }}
+        </div>
+
+        <!-- Cursos M2M agrupados -->
+        <div class="form-card-field col-full">
+          <label>{{ form.cursos.label }}</label>
+          {{ form.cursos }}
+          {% if form.cursos.help_text %}<p class="field-help">{{ form.cursos.help_text }}</p>{% endif %}
+          {% if form.cursos.errors %}<div class="field-error">{{ form.cursos.errors }}</div>{% endif %}
+        </div>
+
+        <!-- Descripción / Instrucciones -->
+        <div class="form-card-field col-full">
+          <label for="{{ form.description.id_for_label }}">Descripción o instrucciones</label>
+          {{ form.description }}
+          {% if form.description.help_text %}<p class="field-help">{{ form.description.help_text }}</p>{% endif %}
+          {% if form.description.errors %}<div class="field-error">{{ form.description.errors }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
   </section>
-  <section class="form-section"><div class="section-heading"><div><span class="eyebrow">Contenido</span><h2>Preguntas</h2><p>Una respuesta correcta por pregunta.</p></div><button class="button button-outline" type="button" id="add-question">Agregar pregunta</button></div>
-    <div class="docx-import-tools"><label class="button button-outline" for="docx-file">Importar desde Word / Google Docs</label><input id="docx-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden><span id="docx-import-status" class="muted" aria-live="polite"></span></div>
-    <div id="question-list" class="question-list"></div><p id="question-error" class="inline-error" role="alert"></p></section>
-  <input type="hidden" name="questions_json" id="questions-json"><div class="form-actions"><a class="text-action" href="{% url 'dashboard' %}">Cancelar</a><button type="submit" class="button button-primary">Guardar evaluación</button></div>
+
+  <!-- SECCIÓN 2: FECHAS Y DURACIÓN -->
+  <section class="form-section">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Sección 2</span>
+        <h2>Fechas y duración</h2>
+        <p>Configura el tiempo límite y la ventana de disponibilidad de la prueba.</p>
+      </div>
+    </div>
+    <div style="padding: 1.25rem 1.5rem;">
+      <div class="editor-grid-container">
+        <!-- Duración en minutos -->
+        <div class="form-card-field col-full">
+          <label for="{{ form.duration_minutes.id_for_label }}">Duración límite (en minutos) *</label>
+          {{ form.duration_minutes }}
+          {% if form.duration_minutes.help_text %}<p class="field-help">{{ form.duration_minutes.help_text }}</p>{% endif %}
+          {% if form.duration_minutes.errors %}<div class="field-error">{{ form.duration_minutes.errors }}</div>{% endif %}
+        </div>
+
+        <!-- Disponible desde -->
+        <div class="form-card-field">
+          <label for="{{ form.available_from.id_for_label }}">Disponible desde (Fecha y hora) *</label>
+          {{ form.available_from }}
+          {% if form.available_from.help_text %}<p class="field-help">{{ form.available_from.help_text }}</p>{% endif %}
+          {% if form.available_from.errors %}<div class="field-error">{{ form.available_from.errors }}</div>{% endif %}
+        </div>
+
+        <!-- Disponible hasta -->
+        <div class="form-card-field">
+          <label for="{{ form.available_until.id_for_label }}">Disponible hasta (Fecha y hora)</label>
+          {{ form.available_until }}
+          {% if form.available_until.help_text %}<p class="field-help">{{ form.available_until.help_text }}</p>{% endif %}
+          {% if form.available_until.errors %}<div class="field-error">{{ form.available_until.errors }}</div>{% endif %}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- VISTA PREVIA RÁPIDA -->
+  <section class="exam-preview" aria-live="polite" aria-label="Vista previa de la evaluación">
+    <div>
+      <span class="eyebrow">Vista previa</span>
+      <h2 id="preview-title">Nueva evaluación</h2>
+    </div>
+    <dl>
+      <div><dt>Materia</dt><dd id="preview-subject">Sin seleccionar</dd></div>
+      <div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div>
+      <div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div>
+    </dl>
+  </section>
+
+  <!-- SECCIÓN 3: CONFIGURACIÓN Y PROCTORING -->
+  <section class="form-section">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Sección 3</span>
+        <h2>Configuración y proctoring</h2>
+        <p>Visibilidad, estado de publicación y supervisión de la prueba.</p>
+      </div>
+    </div>
+    <div style="padding: 1.25rem 1.5rem;">
+      <div class="editor-grid-container">
+        <!-- Opciones de publicación y resultados -->
+        <div class="form-card-field col-full">
+          <div class="checkbox-row-wrapper">
+            <label class="checkbox-inline-label" for="{{ form.published.id_for_label }}">
+              {{ form.published }}
+              <span>Publicar evaluación (los estudiantes la verán en su panel en las fechas fijadas)</span>
+            </label>
+            {% if form.published.errors %}<div class="field-error">{{ form.published.errors }}</div>{% endif %}
+
+            <label class="checkbox-inline-label" for="{{ form.results_visible.id_for_label }}">
+              {{ form.results_visible }}
+              <span>Mostrar resultados al estudiante al finalizar la prueba</span>
+            </label>
+            {% if form.results_visible.errors %}<div class="field-error">{{ form.results_visible.errors }}</div>{% endif %}
+          </div>
+        </div>
+
+        <!-- Asignación individual específica de estudiantes (opcional) -->
+        {% if form.students %}
+        <div class="form-card-field col-full">
+          <label for="{{ form.students.id_for_label }}">{{ form.students.label }} (opcional: dejar vacío para todos los estudiantes de los cursos)</label>
+          {{ form.students }}
+          {% if form.students.help_text %}<p class="field-help">{{ form.students.help_text }}</p>{% endif %}
+          {% if form.students.errors %}<div class="field-error">{{ form.students.errors }}</div>{% endif %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+  <!-- SECCIÓN 4: BANCO DE PREGUNTAS -->
+  <section class="form-section">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">Sección 4</span>
+        <h2>Preguntas</h2>
+        <p>Una respuesta correcta por pregunta. Puntajes mayores a cero.</p>
+      </div>
+      <button class="button button-outline" type="button" id="add-question">+ Agregar pregunta</button>
+    </div>
+    <div style="padding: 1.25rem 1.5rem;">
+      <div class="docx-import-tools">
+        <label class="button button-outline" for="docx-file">Importar desde Word / Google Docs (.docx)</label>
+        <input id="docx-file" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+        <span id="docx-import-status" class="muted" aria-live="polite"></span>
+      </div>
+
+      <div id="question-list" class="question-list" style="margin-top: 1rem;"></div>
+      <p id="question-error" class="inline-error" role="alert"></p>
+    </div>
+  </section>
+
+  <input type="hidden" name="questions_json" id="questions-json">
+
+  <!-- BOTONES PRINCIPALES AGRUPADOS -->
+  <div class="exam-form-footer">
+    <a class="button button-outline" href="{% url 'dashboard' %}">Cancelar</a>
+    <button type="submit" class="button button-primary">Guardar evaluación</button>
+  </div>
 </form>
+
 {{ question_data|json_script:"initial-questions" }}
+
 <dialog id="docx-preview-dialog" class="docx-preview-dialog" data-preview-url="{% url 'exam-import-preview' %}">
-  <div class="docx-preview-heading"><div><span class="eyebrow">Vista previa</span><h2>Revisa las preguntas importadas</h2><p>Selecciona una respuesta correcta para cada pregunta antes de añadirlas.</p></div><button type="button" id="close-docx-preview" class="support-ticket-close" aria-label="Cerrar vista previa">Cerrar</button></div>
+  <div class="docx-preview-heading">
+    <div>
+      <span class="eyebrow">Vista previa</span>
+      <h2>Revisa las preguntas importadas</h2>
+      <p>Selecciona una respuesta correcta para cada pregunta antes de añadirlas.</p>
+    </div>
+    <button type="button" id="close-docx-preview" class="support-ticket-close" aria-label="Cerrar vista previa">Cerrar</button>
+  </div>
   <div id="docx-preview-list" class="docx-preview-list"></div>
   <p id="docx-preview-error" class="inline-error" role="alert"></p>
-  <div class="docx-preview-actions"><button type="button" class="button button-outline" id="cancel-docx-preview">Cancelar</button><button type="button" class="button button-primary" id="use-imported-questions">Agregar preguntas al examen</button></div>
+  <div class="docx-preview-actions">
+    <button type="button" class="button button-outline" id="cancel-docx-preview">Cancelar</button>
+    <button type="button" class="button button-primary" id="use-imported-questions">Agregar preguntas al examen</button>
+  </div>
 </dialog>
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/exam_builder.js' %}" defer></script><script src="{% static 'js/course_picker.js' %}" defer></script><script src="{% static 'js/exam_preview.js' %}" defer></script>{% endblock %}
+
+{% block scripts %}
+<script src="{% static 'js/exam_builder.js' %}" defer></script>
+<script src="{% static 'js/course_picker.js' %}" defer></script>
+<script src="{% static 'js/exam_preview.js' %}" defer></script>
+{% endblock %}

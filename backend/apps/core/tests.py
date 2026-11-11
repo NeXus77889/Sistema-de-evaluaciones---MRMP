@@ -843,3 +843,64 @@ class AuthenticationAndAuthoringTests(TestCase):
 
         with self.assertRaises(ValidationError):
             exam.save()
+
+    def test_proctor_ticket_creation_via_api(self):
+        exam = Exam.objects.create(
+            teacher=self.teacher,
+            materia=self.materia,
+            curso=self.curso,
+            title="Examen proctoring API",
+            duration_minutes=30,
+            available_from=timezone.now(),
+        )
+        attempt = Attempt.objects.create(
+            exam=exam,
+            student=self.student,
+            started_at=timezone.now(),
+        )
+        self.client.force_login(self.student)
+        response = self.client.post(
+            reverse("create-support-ticket"),
+            data=json.dumps(
+                {
+                    "tipo": "PROCTOR",
+                    "codigo": f"SEC-PROCTOR-{attempt.pk}-99",
+                }
+            ),
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 201)
+        ticket = TicketAtencion.objects.get(codigo=f"SEC-PROCTOR-{attempt.pk}-99")
+        self.assertEqual(ticket.tipo, TicketAtencion.Tipo.PROCTOR)
+        self.assertEqual(ticket.intento, attempt)
+
+    def test_report_download_generates_pdf_on_demand_when_missing(self):
+        import tempfile
+        from django.test import override_settings
+
+        exam = Exam.objects.create(
+            teacher=self.teacher,
+            materia=self.materia,
+            curso=self.curso,
+            title="Examen sin PDF previo",
+            duration_minutes=30,
+            available_from=timezone.now(),
+        )
+        attempt = Attempt.objects.create(
+            exam=exam,
+            student=self.student,
+            status=Attempt.Status.SUBMITTED,
+            started_at=timezone.now(),
+            submitted_at=timezone.now(),
+            score=9,
+            percentage=90,
+        )
+        self.client.force_login(self.teacher)
+        with tempfile.TemporaryDirectory() as media_root:
+            with override_settings(MEDIA_ROOT=media_root):
+                response = self.client.get(reverse("report-download", args=[attempt.pk]))
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response["Content-Type"], "application/pdf")
+                attempt.refresh_from_db()
+                self.assertTrue(hasattr(attempt, "report"))
+                self.assertTrue(bool(attempt.report.pdf))

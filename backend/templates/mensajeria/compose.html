@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Nuevo Mensaje — Mensajería Institucional{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Comunicación Interna</span>
+    <h1>Redactar Mensaje</h1>
+    <p>Envía comunicados institucionales o consultas directas.</p>
+  </div>
+  <a class="button button-outline" href="{% url 'mensajeria:inbox' %}">&larr; Volver a recibidos</a>
+</div>
+
+<section class="data-section" style="max-width: 800px; margin: 0 auto;">
+  <form method="post" enctype="multipart/form-data" style="display: flex; flex-direction: column; gap: 1.25rem;">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div style="background: #fef2f2; border: 1px solid #f87171; border-radius: 8px; padding: 0.75rem 1rem; color: #b91c1c;">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {% if form.tipo_destino %}
+      <div class="form-field">
+        <label for="id_tipo_destino" style="font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">
+          Tipo de envío:
+        </label>
+        {{ form.tipo_destino }}
+        {% if form.tipo_destino.errors %}
+          <div style="color: #dc2626; font-size: 0.82rem; margin-top: 0.25rem;">{{ form.tipo_destino.errors }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if form.curso %}
+      <div class="form-field" id="wrap-curso">
+        <label for="id_curso" style="font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">
+          Curso de destino:
+        </label>
+        {{ form.curso }}
+        {% if form.curso.errors %}
+          <div style="color: #dc2626; font-size: 0.82rem; margin-top: 0.25rem;">{{ form.curso.errors }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    {% if form.destinatario %}
+      <div class="form-field" id="wrap-destinatario">
+        <label for="id_destinatario" style="font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">
+          Destinatario:
+        </label>
+        {{ form.destinatario }}
+        {% if form.destinatario.errors %}
+          <div style="color: #dc2626; font-size: 0.82rem; margin-top: 0.25rem;">{{ form.destinatario.errors }}</div>
+        {% endif %}
+      </div>
+    {% endif %}
+
+    <div class="form-field">
+      <label for="id_motivo" style="font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">
+        Asunto / Motivo:
+      </label>
+      {{ form.motivo }}
+      {% if form.motivo.errors %}
+        <div style="color: #dc2626; font-size: 0.82rem; margin-top: 0.25rem;">{{ form.motivo.errors }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label for="id_cuerpo" style="font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">
+        Mensaje:
+      </label>
+      {{ form.cuerpo }}
+      {% if form.cuerpo.errors %}
+        <div style="color: #dc2626; font-size: 0.82rem; margin-top: 0.25rem;">{{ form.cuerpo.errors }}</div>
+      {% endif %}
+    </div>
+
+    <div class="form-field">
+      <label for="id_adjunto" style="font-weight: 600; color: #334155; margin-bottom: 0.35rem; display: block;">
+        Archivo adjunto (opcional):
+      </label>
+      {{ form.adjunto }}
+      <small style="color: #64748b; font-size: 0.8rem; display: block; margin-top: 0.25rem;">
+        Formatos permitidos: PDF, imágenes (JPG, PNG, WEBP), Word (.docx) o Excel (.xlsx). Máximo 5 MB.
+      </small>
+      {% if form.adjunto.errors %}
+        <div style="color: #dc2626; font-size: 0.82rem; margin-top: 0.25rem;">{{ form.adjunto.errors }}</div>
+      {% endif %}
+    </div>
+
+    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1rem;">
+      <a href="{% url 'mensajeria:inbox' %}" class="button button-outline">Cancelar</a>
+      <button type="submit" class="button button-primary">Enviar mensaje</button>
+    </div>
+  </form>
+</section>
+
+{% if form.tipo_destino %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const tipoSelect = document.getElementById('id_tipo_destino');
+    const wrapCurso = document.getElementById('wrap-curso');
+    const wrapDestinatario = document.getElementById('wrap-destinatario');
+
+    function syncVisibility() {
+      if (!tipoSelect) return;
+      if (tipoSelect.value === 'CURSO') {
+        if (wrapCurso) wrapCurso.style.display = 'block';
+        if (wrapDestinatario) wrapDestinatario.style.display = 'none';
+      } else {
+        if (wrapCurso) wrapCurso.style.display = 'none';
+        if (wrapDestinatario) wrapDestinatario.style.display = 'block';
+      }
+    }
+
+    if (tipoSelect) {
+      tipoSelect.addEventListener('change', syncVisibility);
+      syncVisibility();
+    }
+  });
+</script>
+{% endif %}
+{% endblock %}
+

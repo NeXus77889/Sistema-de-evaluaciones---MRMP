@@ -26,6 +26,7 @@ from apps.usuarios.services import (
 # pyrefly: ignore[missing-import]
 from apps.evaluaciones.models import (
     AsignacionDocente,
+    ControlParcial,
     Curso,
     EntregaTarea,
     Exam,
@@ -222,13 +223,15 @@ class CursoAdmin(admin.ModelAdmin):
 
     def resultado_importacion_view(self, request, report_id):
         if not (
-            self._can_import_students(request)
+            request.user.is_superuser
+            or self._can_import_students(request)
             or self._can_import_teachers(request)
         ):
             raise PermissionDenied
         report = request.session.get(f"credential_import_{report_id}")
         if report is None:
-            raise Http404
+            messages.error(request, "El reporte de importación ha expirado o ya no está disponible en la sesión.")
+            return redirect("admin:evaluaciones_curso_changelist")
         courses = sorted({row["curso"] for row in report["rows"] if row["curso"]})
         context = {
             **self.admin_site.each_context(request),
@@ -246,13 +249,15 @@ class CursoAdmin(admin.ModelAdmin):
 
     def descargar_reporte_csv(self, request, report_id):
         if not (
-            self._can_import_students(request)
+            request.user.is_superuser
+            or self._can_import_students(request)
             or self._can_import_teachers(request)
         ):
             raise PermissionDenied
         report = request.session.get(f"credential_import_{report_id}")
         if report is None:
-            raise Http404
+            messages.error(request, "La sesión del reporte de importación ha expirado o no existe.")
+            return redirect("admin:evaluaciones_curso_changelist")
 
         response = HttpResponse(content_type="text/csv; charset=utf-8")
         response.write("\ufeff")
@@ -437,8 +442,9 @@ class ExamAdmin(admin.ModelAdmin):
         "materia",
         "curso",
         "published_display",
+        "aprobada_display",
     )
-    list_filter = ("published", "materia", EducationalLevelFilter, ExamCourseFilter)
+    list_filter = ("published", "aprobada", "materia", EducationalLevelFilter, ExamCourseFilter)
     filter_horizontal = ("cursos", "students")
     search_fields = ("title", "teacher__username")
 
@@ -450,9 +456,13 @@ class ExamAdmin(admin.ModelAdmin):
     def teacher_display(self, exam):
         return exam.teacher
 
-    @admin.display(description="Estado", boolean=True, ordering="published")
+    @admin.display(description="Publicada", boolean=True, ordering="published")
     def published_display(self, exam):
         return exam.published
+
+    @admin.display(description="Aprobada por Admin", boolean=True, ordering="aprobada")
+    def aprobada_display(self, exam):
+        return exam.aprobada
 
     def formfield_for_dbfield(self, db_field, request, **kwargs):
         field = super().formfield_for_dbfield(db_field, request, **kwargs)
@@ -468,6 +478,7 @@ class ExamAdmin(admin.ModelAdmin):
             "available_from": "Disponible desde",
             "available_until": "Disponible hasta",
             "published": "Publicada",
+            "aprobada": "Aprobada por Administrador",
             "results_visible": "Mostrar resultados al estudiante",
         }
         if field and db_field.name in labels:
@@ -524,3 +535,11 @@ class RegistroCalificacionAdmin(admin.ModelAdmin):
     list_display = ("estudiante", "insumo", "nota", "fecha_registro")
     list_filter = ("insumo__tipo", "insumo__periodo", "insumo__curso")
     search_fields = ("estudiante__username", "estudiante__first_name", "estudiante__last_name", "insumo__nombre")
+
+
+@admin.register(ControlParcial)
+class ControlParcialAdmin(admin.ModelAdmin):
+    list_display = ("__str__", "trimestre", "parcial", "habilitado", "finalizado_en", "actualizado_por", "updated_at")
+    list_filter = ("habilitado", "trimestre", "parcial")
+    ordering = ("trimestre", "parcial")
+

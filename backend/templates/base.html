@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}Evaluaciones{% endblock %} · Aula</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=8">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=26">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -15,7 +15,7 @@
     <aside class="sidebar">
       <a class="brand" href="{% url 'dashboard' %}">
         <div class="brand-logo-container">
-          <img class="brand-logo" src="{% static 'img/uepmrmp-logo.svg' %}" alt="UEPMRMP">
+          <img class="brand-logo" src="{% static 'imagenes/logo.png' %}" alt="UEPMRMP">
         </div>
         <div class="brand-text-block">
           <span class="brand-title">UEPMRMP</span>
@@ -25,17 +25,51 @@
       <div class="sidebar-label">Espacio de trabajo</div>
       <nav class="side-nav" aria-label="Navegación principal">
         <a class="nav-link{% if request.resolver_match.url_name == 'dashboard' or request.resolver_match.url_name == 'administracion' %} is-active{% endif %}" href="{% if request.user.rol == 'ADMIN' %}{% url 'administracion' %}{% else %}{% url 'dashboard' %}{% endif %}">Panel general</a>
+
+        <div class="sidebar-section-title">Evaluaciones</div>
         {% if request.user.rol == 'DOCENTE' %}
           <a class="nav-link{% if request.resolver_match.url_name == 'exam-create' %} is-active{% endif %}" href="{% url 'exam-create' %}">Nueva evaluación</a>
+        {% elif request.user.rol == 'ESTUDIANTE' %}
+          <a class="nav-link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}" href="{% url 'dashboard' %}">Mis evaluaciones</a>
+        {% elif request.user.rol == 'ADMIN' %}
+          <a class="nav-link{% if request.resolver_match.url_name == 'administracion' and '#revision-evaluaciones' in request.get_full_path %} is-active{% endif %}" href="{% url 'administracion' %}#revision-evaluaciones">
+            <span>Revisión de evaluaciones</span>
+            {% if total_exams_pendientes %}
+              <span class="badge-unread" style="margin-left: auto; background: #ef4444; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px;" title="{{ total_exams_pendientes }} pendientes de aprobación">{{ total_exams_pendientes }}</span>
+            {% elif total_exams_nuevas %}
+              <span class="badge-unread" style="margin-left: auto; background: #f59e0b; color: #1e293b; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px;" title="{{ total_exams_nuevas }} recientes">{{ total_exams_nuevas }}</span>
+            {% endif %}
+          </a>
+          <a class="nav-link{% if request.resolver_match.url_name == 'administracion' and '#revision-evaluaciones' not in request.get_full_path %} is-active{% endif %}" href="{% url 'administracion' %}">Auditoría general</a>
+        {% endif %}
+
+        <div class="sidebar-section-title">Tareas</div>
+        {% if request.user.rol == 'ADMIN' %}
+          <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-tareas-list' %}">Supervisión de Tareas</a>
+        {% elif request.user.rol == 'DOCENTE' %}
           <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-tareas-list' %}">Gestión de Tareas</a>
-          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-calificaciones-matrix' %}">Calificaciones (Runachay)</a>
         {% elif request.user.rol == 'ESTUDIANTE' %}
           <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'estudiante-tareas-list' %}">Mis Tareas</a>
+        {% endif %}
+
+        <div class="sidebar-section-title">Calificaciones</div>
+        {% if request.user.rol == 'ADMIN' %}
+          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-calificaciones-matrix' %}">Auditoría Calificaciones</a>
+        {% elif request.user.rol == 'DOCENTE' %}
+          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-calificaciones-matrix' %}">Calificaciones</a>
+        {% elif request.user.rol == 'ESTUDIANTE' %}
           <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'estudiante-calificaciones-boletin' %}">Mis Calificaciones</a>
-        {% elif request.user.rol == 'ADMIN' %}
-          <a class="nav-link{% if 'tarea' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-tareas-list' %}">Gestión de Tareas</a>
-          <a class="nav-link{% if 'calificacion' in request.resolver_match.url_name %} is-active{% endif %}" href="{% url 'docente-calificaciones-matrix' %}">Calificaciones (Runachay)</a>
-          <a class="nav-link" href="/admin/">Django Admin</a>
+        {% endif %}
+
+        <div class="sidebar-section-title">Mensajería</div>
+        <a class="nav-link{% if request.resolver_match.app_name == 'mensajeria' or '/mensajes/' in request.path %} is-active{% endif %}" href="{% url 'mensajeria:inbox' %}">
+          <span>Mensajería</span>
+          {% if unread_mensajes_count %}<span class="badge-unread" style="margin-left: auto; background: #ef4444; color: #fff; font-size: 11px; padding: 2px 7px; border-radius: 999px;">{{ unread_mensajes_count }}</span>{% endif %}
+        </a>
+
+        {% if request.user.rol == 'ADMIN' or request.user.is_superuser %}
+          <div class="sidebar-section-title">Sistema</div>
+          <a class="nav-link" href="/admin/">Administrar sistema</a>
         {% endif %}
       </nav>
       <div class="sidebar-bottom">
@@ -45,10 +79,16 @@
     </aside>
     <main class="main-area">
       <header class="topbar">
-        <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-expanded="false">Menú</button>
+        <button class="sidebar-toggle" type="button" data-sidebar-toggle aria-expanded="false" aria-label="Ocultar menú" title="Ocultar menú">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
         <div class="topbar-institutional-container">
           <div class="topbar-logo-wrap">
-            <img class="topbar-logo-img" src="{% static 'img/uepmrmp-logo.svg' %}" alt="Logo UEPMRMP">
+            <img class="topbar-logo-img" src="{% static 'imagenes/logo.png' %}" alt="UEPMRMP">
           </div>
           <div class="topbar-institution-info">
             <span class="topbar-inst-name">Unidad Educativa Particular Monseñor Roberto María del Pozo</span>
@@ -98,6 +138,21 @@
   </dialog>
   <script src="{% static 'js/support_ticket.js' %}" defer></script>
   <script src="{% static 'js/sidebar_toggle.js' %}?v=2" defer></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      // Eliminar notificaciones/mensajes toast globales al hacer clic
+      document.querySelectorAll(".messages .message, .public-messages .message").forEach(function(msg) {
+        msg.style.cursor = "pointer";
+        msg.title = "Haz clic para descartar esta notificación";
+        msg.addEventListener("click", function() {
+          msg.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+          msg.style.opacity = "0";
+          msg.style.transform = "translateY(-6px)";
+          setTimeout(function() { msg.remove(); }, 200);
+        });
+      });
+    });
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

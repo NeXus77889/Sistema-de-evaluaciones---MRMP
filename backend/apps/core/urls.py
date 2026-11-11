@@ -4,6 +4,8 @@ from apps.core.views import (
     AccountPasswordChangeView,
     SignInView,
     SignOutView,
+    admin_toggle_aprobacion_evaluacion,
+    admin_toggle_parcial,
     create_support_ticket,
     dashboard,
     exam_delete,
@@ -51,6 +53,8 @@ urlpatterns = [
     ),
     path("", dashboard, name="dashboard"),
     path("administracion/", dashboard, name="administracion"),
+    path("administracion/parciales/toggle/", admin_toggle_parcial, name="admin-toggle-parcial"),
+    path("administracion/evaluacion/<int:exam_id>/aprobar/", admin_toggle_aprobacion_evaluacion, name="admin-toggle-aprobacion-evaluacion"),
     path("docente/evaluacion/nueva/", exam_edit, name="exam-create"),
     path("docente/evaluacion/importar-docx/", exam_import_preview, name="exam-import-preview"),
     path("docente/evaluacion/<int:exam_id>/editar/", exam_edit, name="exam-edit"),
@@ -65,7 +69,7 @@ urlpatterns = [
     path("docente/tareas/nueva/", docente_tarea_form, name="docente-tarea-create"),
     path("docente/tareas/<int:tarea_id>/", docente_tarea_detalle, name="docente-tarea-detalle"),
     path("docente/tareas/<int:tarea_id>/editar/", docente_tarea_form, name="docente-tarea-edit"),
-    # Módulo de Calificaciones Institucional - Runachay (Docente)
+    # Módulo de Calificaciones Institucional (Docente)
     path("docente/calificaciones/", docente_calificaciones_matrix, name="docente-calificaciones-matrix"),
     # Portal Estudiante
     path("estudiante/tareas/", estudiante_tareas_list, name="estudiante-tareas-list"),

@@ -133,32 +133,46 @@ def create_and_email_report(attempt_id):
         attempt = Attempt.objects.select_for_update().select_related(
             "exam", "exam__teacher", "student"
         ).get(pk=attempt_id)
-        if attempt.status != Attempt.Status.SUBMITTED:
-            raise ValueError("El informe solo puede generarse para intentos finalizados.")
         report, _ = AttemptReport.objects.get_or_create(attempt=attempt)
         if not report.pdf:
             pdf_data = build_pdf(attempt)
             report.pdf.save(f"intento_{attempt.pk}.pdf", ContentFile(pdf_data), save=False)
             report.save(update_fields=["pdf"])
-        should_send = not report.email_attempted_at and bool(attempt.exam.teacher.email)
+        else:
+            try:
+                report.pdf.open("rb")
+                pdf_data = report.pdf.read()
+            except Exception:
+                pdf_data = build_pdf(attempt)
+                report.pdf.save(f"intento_{attempt.pk}.pdf", ContentFile(pdf_data), save=False)
+                report.save(update_fields=["pdf"])
+
+        should_send = (
+            attempt.status == Attempt.Status.SUBMITTED
+            and not report.email_attempted_at
+            and bool(attempt.exam.teacher.email)
+        )
         if should_send:
             report.email_attempted_at = timezone.now()
             report.save(update_fields=["email_attempted_at"])
 
     if should_send:
         teacher = attempt.exam.teacher
-        message = EmailMessage(
-            subject=f"Informe de evaluación: {attempt.exam.title}",
-            body=(
-                f"El intento de {attempt.student.get_full_name() or attempt.student.username} "
-                f"finalizó con {attempt.percentage}% de respuestas correctas. "
-                f"Nivel de sospecha calculado: {attempt.suspicion_level}. "
-                "El indicador no modifica la calificación."
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            to=[teacher.email],
-        )
-        message.attach(f"informe_intento_{attempt.pk}.pdf", pdf_data, "application/pdf")
-        message.send(fail_silently=False)
-        AttemptReport.objects.filter(pk=report.pk).update(email_sent_at=timezone.now())
+        try:
+            message = EmailMessage(
+                subject=f"Informe de evaluación: {attempt.exam.title}",
+                body=(
+                    f"El intento de {attempt.student.get_full_name() or attempt.student.username} "
+                    f"finalizó con {attempt.percentage}% de respuestas correctas. "
+                    f"Nivel de sospecha calculado: {attempt.suspicion_level}. "
+                    "El indicador no modifica la calificación."
+                ),
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                to=[teacher.email],
+            )
+            message.attach(f"informe_intento_{attempt.pk}.pdf", pdf_data, "application/pdf")
+            message.send(fail_silently=True)
+            AttemptReport.objects.filter(pk=report.pk).update(email_sent_at=timezone.now())
+        except Exception:
+            pass
     return report

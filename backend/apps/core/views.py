@@ -1,5 +1,6 @@
 import json
 import re
+from datetime import timedelta
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -25,8 +26,19 @@ from apps.evaluaciones.academic import (
     group_items_by_level,
 )
 from apps.evaluaciones.docx_import import DocxImportError, parse_docx_questions
-from apps.evaluaciones.models import Exam, Option, Question
-from apps.evaluaciones.models import Curso
+from apps.evaluaciones.models import (
+    ControlParcial,
+    Curso,
+    EntregaTarea,
+    Exam,
+    InsumoCalificacion,
+    Materia,
+    Option,
+    Question,
+    RegistroCalificacion,
+    Tarea,
+)
+from apps.mensajeria.models import Mensaje
 from apps.intentos.models import Attempt, Incident
 from apps.core.models import TicketAtencion
 from apps.usuarios.models import User
@@ -55,7 +67,9 @@ class AccountPasswordChangeView(PasswordChangeView):
 
 
 def _is_secretary(user):
-    return user.is_authenticated and user.is_staff and user.rol == User.Role.ADMINISTRATOR
+    return user.is_authenticated and (
+        user.rol == User.Role.ADMINISTRATOR or user.is_staff or user.is_superuser
+    )
 
 
 def _teacher_incident_groups(teacher):
@@ -281,6 +295,7 @@ def create_support_ticket(request):
         "PASS": r"^SEC-PASS-\d{6,40}$",
         "USER": r"^SEC-USER-\d{6}$",
         "EXAM": r"^SEC-EXAM-\d+-\d{6,40}$",
+        "PROCTOR": r"^SEC-PROCTOR-\d+-\d+$",
     }
     if not isinstance(kind, str) or kind not in patterns or not re.fullmatch(patterns[kind], code):
         return JsonResponse({"error": "Tipo o código de atención inválido."}, status=400)
@@ -319,6 +334,15 @@ def create_support_ticket(request):
             email__iexact=contact_email,
             rol=User.Role.STUDENT,
         ).first()
+    elif kind == "PROCTOR":
+        match = re.fullmatch(r"SEC-PROCTOR-(\d+)-(\d+)", code)
+        if not match:
+            return JsonResponse({"error": "Código de proctoring no válido."}, status=400)
+        attempt_id, _incident_id = match.groups()
+        attempt = Attempt.objects.filter(pk=attempt_id).first()
+        if attempt is None:
+            return JsonResponse({"error": "No se encontró el intento asociado a la incidencia."}, status=404)
+        student = attempt.student
     else:
         if not request.user.is_authenticated or request.user.rol != User.Role.STUDENT:
             return JsonResponse({"error": "Debes iniciar sesión como estudiante."}, status=403)
@@ -489,6 +513,79 @@ def ticket_user_info(request, ticket_id):
 
 
 @login_required
+@require_POST
+def admin_toggle_parcial(request):
+    if not (request.user.rol == User.Role.ADMINISTRATOR or request.user.is_superuser):
+        return HttpResponseForbidden("Solo los administradores pueden gestionar la finalización y apertura de parciales.")
+
+    trimestre = request.POST.get("trimestre")
+    parcial = request.POST.get("parcial")
+    accion = request.POST.get("accion")
+
+    try:
+        trim_num = int(trimestre)
+        parc_num = int(parcial)
+        if trim_num not in (1, 2, 3) or parc_num not in (1, 2):
+            messages.error(request, "Trimestre o parcial no válido.")
+            return redirect("administracion")
+    except (ValueError, TypeError):
+        messages.error(request, "Valores de periodo no válidos.")
+        return redirect("administracion")
+
+    control, _ = ControlParcial.objects.get_or_create(
+        trimestre=trim_num,
+        parcial=parc_num,
+        defaults={"habilitado": False},
+    )
+
+    if accion == "habilitar":
+        control.habilitado = True
+        control.finalizado_en = None
+        control.actualizado_por = request.user
+        control.save(update_fields=["habilitado", "finalizado_en", "actualizado_por", "updated_at"])
+        messages.success(
+            request,
+            f"El Trimestre {trim_num} - Parcial {parc_num} ha sido HABILITADO. Los docentes ahora pueden registrar calificaciones.",
+        )
+    elif accion == "finalizar":
+        control.habilitado = False
+        control.finalizado_en = timezone.now()
+        control.actualizado_por = request.user
+        control.save(update_fields=["habilitado", "finalizado_en", "actualizado_por", "updated_at"])
+        messages.info(
+            request,
+            f"El Trimestre {trim_num} - Parcial {parc_num} ha sido FINALIZADO. Las calificaciones han quedado cerradas para docentes.",
+        )
+
+    next_url = request.POST.get("next")
+    if next_url:
+        return redirect(next_url)
+    return redirect("administracion")
+
+
+@login_required
+@require_POST
+def admin_toggle_aprobacion_evaluacion(request, exam_id):
+    if not (request.user.rol == User.Role.ADMINISTRATOR or request.user.is_superuser):
+        return HttpResponseForbidden("Solo los administradores pueden aprobar o desaprobar evaluaciones.")
+    exam = get_object_or_404(Exam, pk=exam_id)
+    accion = request.POST.get("accion")
+    if accion == "aprobar":
+        exam.aprobada = True
+        exam.save(update_fields=["aprobada", "updated_at"])
+        messages.success(request, f'La evaluación "{exam.title}" ha sido APROBADA por el administrador.')
+    elif accion == "desaprobar":
+        exam.aprobada = False
+        exam.save(update_fields=["aprobada", "updated_at"])
+        messages.info(request, f'La evaluación "{exam.title}" ha sido marcada como PENDIENTE de aprobación.')
+    next_url = request.POST.get("next") or request.META.get("HTTP_REFERER")
+    if next_url:
+        return redirect(next_url)
+    return redirect("administracion")
+
+
+
+@login_required
 def dashboard(request):
     user = request.user
     if user.rol == User.Role.ADMINISTRATOR:
@@ -496,6 +593,134 @@ def dashboard(request):
             Exam.objects.select_related("teacher", "materia", "curso")
             .prefetch_related("cursos")[:12]
         )
+        cursos_todos = sorted(Curso.objects.all(), key=course_sort_key)
+
+        # 1. Auditoría de Calificaciones por Curso
+        cursos_calificaciones = []
+        for c in cursos_todos:
+            estudiantes = list(c.estudiantes.filter(is_active=True).order_by("last_name", "first_name"))
+            if not estudiantes:
+                continue
+            insumos_curso = list(InsumoCalificacion.objects.filter(curso=c).select_related("materia"))
+            insumos_map = {i.pk: i for i in insumos_curso}
+            regs = list(
+                RegistroCalificacion.objects.filter(insumo_id__in=insumos_map.keys())
+                .select_related("insumo", "insumo__materia", "estudiante")
+            )
+            est_con_notas = {}
+            for r in regs:
+                est_con_notas.setdefault(r.estudiante_id, []).append(r)
+
+            estudiantes_data = []
+            for est in estudiantes:
+                notas_est = est_con_notas.get(est.pk, [])
+                materias_calificadas = {r.insumo.materia.nombre for r in notas_est if r.insumo.materia}
+                prom = round(sum(r.nota for r in notas_est) / len(notas_est), 2) if notas_est else None
+                estudiantes_data.append({
+                    "estudiante": est,
+                    "total_notas": len(notas_est),
+                    "materias_calificadas": sorted(list(materias_calificadas)),
+                    "promedio_general": prom,
+                    "tiene_calificaciones": len(notas_est) > 0,
+                })
+
+            con_calif_count = sum(1 for ed in estudiantes_data if ed["tiene_calificaciones"])
+            materias_curso = Materia.objects.filter(asignaciones__curso=c, asignaciones__activo=True).distinct()
+
+            cursos_calificaciones.append({
+                "curso": c,
+                "estudiantes": estudiantes_data,
+                "total_estudiantes": len(estudiantes),
+                "con_calificaciones": con_calif_count,
+                "materias": materias_curso,
+            })
+
+        # 2. Auditoría de Tareas por Curso
+        cursos_tareas = []
+        for c in cursos_todos:
+            tareas_curso = list(
+                Tarea.objects.filter(curso=c)
+                .select_related("materia", "docente")
+                .order_by("-fecha_entrega")
+            )
+            total_alumnos = c.estudiantes.filter(is_active=True).count()
+            if not tareas_curso and total_alumnos == 0:
+                continue
+            tareas_detalle = []
+            for t in tareas_curso:
+                entregas_qs = t.entregas.all()
+                entregados = entregas_qs.filter(
+                    estado__in=[EntregaTarea.ESTADO_ENTREGADO, EntregaTarea.ESTADO_ATRASADO]
+                ).count()
+                calificados = entregas_qs.filter(calificacion__isnull=False).count()
+                pendientes = max(0, total_alumnos - entregados)
+                tareas_detalle.append({
+                    "tarea": t,
+                    "entregados": entregados,
+                    "pendientes": pendientes,
+                    "calificados": calificados,
+                    "total_alumnos": total_alumnos,
+                })
+            cursos_tareas.append({
+                "curso": c,
+                "tareas": tareas_detalle,
+                "total_tareas": len(tareas_curso),
+                "total_alumnos": total_alumnos,
+            })
+
+        # 3. Supervisión de Mensajería / Comunicados por Curso
+        cursos_mensajes = []
+        for c in cursos_todos:
+            mensajes_curso = list(
+                Mensaje.objects.filter(curso=c)
+                .select_related("remitente")
+                .order_by("-fecha")[:10]
+            )
+            mensajes_detalle = []
+            for m in mensajes_curso:
+                total_dest = m.lecturas.count()
+                leidos = m.lecturas.filter(leido=True).count()
+                mensajes_detalle.append({
+                    "mensaje": m,
+                    "total_dest": total_dest,
+                    "leidos": leidos,
+                })
+            cursos_mensajes.append({
+                "curso": c,
+                "mensajes": mensajes_detalle,
+                "total_mensajes": len(mensajes_curso),
+            })
+
+        # 4. Revisión de Evaluaciones Agrupadas por Curso (Admin)
+        umbral_nueva = timezone.now() - timedelta(days=7)
+        cursos_evaluaciones = []
+        for c in cursos_todos:
+            exams_curso = list(
+                Exam.objects.filter(Q(curso=c) | Q(cursos=c))
+                .distinct()
+                .select_related("teacher", "materia", "curso")
+                .prefetch_related("cursos")
+                .order_by("-created_at")
+            )
+            if not exams_curso:
+                continue
+            exams_data = []
+            nuevas_curso_count = 0
+            for ex in exams_curso:
+                is_nueva = bool(ex.created_at and ex.created_at >= umbral_nueva)
+                if is_nueva:
+                    nuevas_curso_count += 1
+                exams_data.append({
+                    "exam": ex,
+                    "is_nueva": is_nueva,
+                })
+            cursos_evaluaciones.append({
+                "curso": c,
+                "evaluaciones": exams_data,
+                "total_evaluaciones": len(exams_data),
+                "nuevas_count": nuevas_curso_count,
+            })
+
         context = {
             "user_count": User.objects.count(),
             "teacher_count": User.objects.filter(rol=User.Role.TEACHER, is_active=True).count(),
@@ -510,7 +735,7 @@ def dashboard(request):
                     "attempt__student__cursos", "attempt__exam__cursos"
                 ).order_by("-occurred_at")
             ),
-            "filter_courses": sorted(Curso.objects.all(), key=course_sort_key),
+            "filter_courses": cursos_todos,
             "ticket_groups": _ticket_groups_by_level(
                 TicketAtencion.objects.select_related(
                     "estudiante", "atendido_por", "intento__student", "intento__exam__curso"
@@ -519,6 +744,11 @@ def dashboard(request):
                 )
             ),
             "exam_groups": group_items_by_level(exams),
+            "parciales_control": ControlParcial.obtener_todos(),
+            "cursos_calificaciones": cursos_calificaciones,
+            "cursos_tareas": cursos_tareas,
+            "cursos_mensajes": cursos_mensajes,
+            "cursos_evaluaciones": cursos_evaluaciones,
         }
         return render(request, "admin/dashboard.html", context)
     if user.rol == User.Role.TEACHER:
@@ -578,7 +808,8 @@ def dashboard(request):
 @login_required
 def exam_edit(request, exam_id=None):
     if request.user.rol != User.Role.TEACHER:
-        raise Http404
+        messages.warning(request, "Los administradores supervisan y auditan las evaluaciones; su creación y edición corresponde a los docentes.")
+        return redirect("administracion")
     exam = get_object_or_404(Exam, pk=exam_id, teacher=request.user) if exam_id else None
     if exam and exam.attempts.exists():
         messages.error(request, "Esta evaluación ya tiene intentos y no se puede modificar.")
@@ -726,6 +957,8 @@ def exam_launch(request, exam_id):
     launch_error = None
     if not exam.published:
         launch_error = "Esta evaluación todavía no ha sido publicada."
+    elif not exam.aprobada:
+        launch_error = "Esta evaluación se encuentra en revisión y está pendiente de aprobación por la administración."
     elif not exam.is_assigned_to_student(request.user):
         launch_error = "Esta evaluación no está asignada a tu curso ni a tu usuario."
     elif now < exam.available_from:
@@ -768,7 +1001,7 @@ def result_detail(request, attempt_id):
 @login_required
 def report_download(request, attempt_id):
     attempt = get_object_or_404(
-        Attempt.objects.select_related("exam", "exam__teacher"), pk=attempt_id
+        Attempt.objects.select_related("exam", "exam__teacher", "student"), pk=attempt_id
     )
     can_access = (
         request.user.rol == User.Role.ADMINISTRATOR
@@ -779,11 +1012,51 @@ def report_download(request, attempt_id):
             and attempt.status == Attempt.Status.SUBMITTED
         )
     )
-    if not can_access or not hasattr(attempt, "report") or not attempt.report.pdf:
-        raise Http404
-    return FileResponse(
-        attempt.report.pdf.open("rb"),
-        as_attachment=True,
-        filename=f"informe_intento_{attempt.pk}.pdf",
-        content_type="application/pdf",
-    )
+    if not can_access:
+        messages.error(
+            request,
+            "No tienes permiso para descargar este informe o los resultados aún no están disponibles.",
+        )
+        return redirect("dashboard")
+
+    # Generar el informe bajo demanda si falta o si no tiene archivo PDF
+    if not hasattr(attempt, "report") or not attempt.report.pdf:
+        try:
+            from apps.reportes.services import create_and_email_report
+
+            create_and_email_report(attempt.pk)
+            attempt.refresh_from_db()
+        except Exception:
+            try:
+                from django.core.files.base import ContentFile
+                from apps.reportes.models import AttemptReport
+                from apps.reportes.services import build_pdf
+
+                pdf_data = build_pdf(attempt)
+                report, _ = AttemptReport.objects.get_or_create(attempt=attempt)
+                report.pdf.save(
+                    f"informe_intento_{attempt.pk}.pdf",
+                    ContentFile(pdf_data),
+                    save=True,
+                )
+                attempt.refresh_from_db()
+            except Exception as exc:
+                messages.error(request, f"No se pudo generar el informe PDF: {exc}")
+                if request.user == attempt.student:
+                    return redirect("result-detail", attempt_id=attempt.pk)
+                return redirect("dashboard")
+
+    if not hasattr(attempt, "report") or not attempt.report.pdf:
+        messages.error(request, "El intento no cuenta con un informe PDF disponible.")
+        return redirect("dashboard")
+
+    try:
+        return FileResponse(
+            attempt.report.pdf.open("rb"),
+            as_attachment=True,
+            filename=f"informe_intento_{attempt.pk}.pdf",
+            content_type="application/pdf",
+        )
+    except Exception as exc:
+        messages.error(request, f"Error al abrir el archivo del informe: {exc}")
+        return redirect("dashboard")

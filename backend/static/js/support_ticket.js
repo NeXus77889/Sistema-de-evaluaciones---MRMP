@@ -28,6 +28,9 @@
     if (kind === "EXAM") {
       code = `SEC-EXAM-${button.dataset.examId}-${identification}`;
     }
+    if (kind === "PROCTOR") {
+      code = button.dataset.ticketCode || `SEC-PROCTOR-${button.dataset.attemptId || 0}-${button.dataset.incidentId || randomDigits(4)}`;
+    }
     activeTicket = {
       tipo: kind,
       codigo: code,
@@ -38,7 +41,8 @@
 
     document.getElementById("support-ticket-title").textContent =
       kind === "PASS" ? "Recuperar contraseña" :
-      kind === "USER" ? "Recuperar usuario o cédula" : "Reportar evaluación";
+      kind === "USER" ? "Recuperar usuario o cédula" :
+      kind === "PROCTOR" ? "Incidencia de proctoring" : "Reportar evaluación";
     document.getElementById("support-ticket-description").textContent =
       kind === "USER" || (kind === "PASS" && !identification)
         ? "Ingresa el correo registrado en tu cuenta para que Secretaría pueda localizarte."

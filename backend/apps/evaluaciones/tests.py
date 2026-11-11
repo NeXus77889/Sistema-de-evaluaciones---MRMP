@@ -420,3 +420,116 @@ class CalificacionesRunachayTests(TestCase):
         self.assertContains(resp2, "Insumo Borrador")
         self.assertContains(resp2, "10.0")
 
+    def test_tarea_asegurar_insumo_and_bidirectional_sync(self):
+        tarea = Tarea.objects.create(
+            curso=self.curso,
+            materia=self.materia,
+            docente=self.docente,
+            titulo="Investigación de Álgebra",
+            trimestre=2,
+            parcial=1,
+            fecha_entrega=timezone.now() + timedelta(days=2),
+            peso_porcentual=Decimal("15.00"),
+        )
+        self.assertIsNotNone(tarea.insumo)
+        self.assertEqual(tarea.insumo.trimestre, 2)
+        self.assertEqual(tarea.insumo.parcial, 1)
+        self.assertEqual(tarea.insumo.ponderacion, Decimal("15.00"))
+
+        # Calificar entrega desde docente_tarea_detalle
+        self.client.force_login(self.docente)
+        url_detalle = reverse("docente-tarea-detalle", args=[tarea.pk])
+        resp = self.client.post(
+            url_detalle,
+            {
+                "calificar_estudiante_id": self.estudiante.pk,
+                "calificacion": "9.50",
+                "retroalimentacion": "Excelente trabajo",
+            },
+        )
+        self.assertEqual(resp.status_code, 302)
+
+        # Verificar que se creó RegistroCalificacion sincronizado
+        registro = RegistroCalificacion.objects.get(insumo=tarea.insumo, estudiante=self.estudiante)
+        self.assertEqual(registro.nota, Decimal("9.50"))
+
+        # Modificar nota desde la sábana y verificar sincronización hacia EntregaTarea
+        registro.nota = Decimal("8.00")
+        registro.save()
+        entrega = EntregaTarea.objects.get(tarea=tarea, estudiante=self.estudiante)
+        self.assertEqual(entrega.calificacion, Decimal("8.00"))
+
+        # Borrar nota (dejar en blanco) y verificar que se limpia en ambos
+        resp_clear = self.client.post(
+            url_detalle,
+            {
+                "calificar_entrega_id": entrega.pk,
+                "calificacion": "",
+            },
+        )
+        self.assertEqual(resp_clear.status_code, 302)
+        self.assertFalse(RegistroCalificacion.objects.filter(insumo=tarea.insumo, estudiante=self.estudiante).exists())
+        entrega.refresh_from_db()
+        self.assertIsNone(entrega.calificacion)
+
+    def test_calificaciones_matrix_cell_save_ajax(self):
+        insumo = InsumoCalificacion.objects.create(
+            curso=self.curso,
+            materia=self.materia,
+            docente=self.docente,
+            nombre="Taller 1",
+            trimestre=1,
+            parcial=1,
+            ponderacion=Decimal("50.00"),
+        )
+        self.client.force_login(self.docente)
+        url_matrix = reverse("docente-calificaciones-matrix") + f"?curso={self.curso.pk}&materia={self.materia.pk}&trimestre=1&parcial=1"
+
+        # Guardar celda vía AJAX
+        resp = self.client.post(
+            url_matrix,
+            {
+                "action": "save_single_grade",
+                "insumo_id": insumo.pk,
+                "estudiante_id": self.estudiante.pk,
+                "nota": "9.25",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp.status_code, 200)
+        data = resp.json()
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["nota"], "9.25")
+        self.assertTrue(RegistroCalificacion.objects.filter(insumo=insumo, estudiante=self.estudiante, nota=Decimal("9.25")).exists())
+
+        # Validación nota > 10
+        resp_invalid = self.client.post(
+            url_matrix,
+            {
+                "action": "save_single_grade",
+                "insumo_id": insumo.pk,
+                "estudiante_id": self.estudiante.pk,
+                "nota": "15.00",
+            },
+            HTTP_X_REQUESTED_WITH="XMLHttpRequest",
+        )
+        self.assertEqual(resp_invalid.status_code, 400)
+
+    def test_convertir_periodos_command(self):
+        from django.core.management import call_command
+
+        insumo_antiguo = InsumoCalificacion.objects.create(
+            curso=self.curso,
+            materia=self.materia,
+            docente=self.docente,
+            nombre="Insumo Antiguo",
+            periodo="Segundo Quimestre - Parcial 2",
+            trimestre=1,
+            parcial=1,
+        )
+        call_command("convertir_periodos")
+        insumo_antiguo.refresh_from_db()
+        self.assertEqual(insumo_antiguo.trimestre, 2)
+        self.assertEqual(insumo_antiguo.parcial, 2)
+
+

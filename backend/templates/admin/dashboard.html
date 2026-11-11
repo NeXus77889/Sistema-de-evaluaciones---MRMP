@@ -1,40 +1,582 @@
 {% extends "base.html" %}
 {% load static %}
-{% block title %}Administración{% endblock %}
+{% load evaluaciones_tags %}
+{% block title %}Administración — Supervisión y Auditoría{% endblock %}
 {% block content %}
-<div class="page-heading"><div><span class="eyebrow">Administración</span><h1>Vista general</h1><p>Actividad y usuarios de la plataforma.</p></div><a class="button button-primary" href="/admin/">Administrar sistema</a></div>
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Administración del Sistema</span>
+    <h1>Panel de Control y Auditoría</h1>
+    <p>Supervisión de periodos académicos, calificaciones, tareas, evaluaciones y comunicados.</p>
+  </div>
+  <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+    <a class="button button-outline" href="{% url 'mensajeria:compose' %}">Nuevo Comunicado</a>
+    <a class="button button-primary" href="/admin/">Administrar sistema</a>
+  </div>
+</div>
+
 <section class="stat-grid" aria-label="Estadísticas generales">
   <article class="stat-card"><span>Usuarios activos</span><strong>{{ user_count }}</strong><small>cuentas registradas</small></article>
   <article class="stat-card"><span>Docentes</span><strong>{{ teacher_count }}</strong><small>con acceso activo</small></article>
   <article class="stat-card"><span>Estudiantes</span><strong>{{ student_count }}</strong><small>con acceso activo</small></article>
   <article class="stat-card stat-accent"><span>Evaluaciones</span><strong>{{ exam_count }}</strong><small>{{ attempt_count }} intentos · {{ incident_count }} señales</small></article>
 </section>
-<section class="data-section"><div class="section-heading"><div><span class="eyebrow">Evaluaciones</span><h2>Actividad por nivel educativo</h2></div></div>
-  {% for group in exam_groups %}<details class="level-group" open><summary>{{ group.label }} <span class="section-count">{{ group.items|length }}</span></summary><div class="table-wrap"><table><thead><tr><th>Evaluación</th><th>Materia</th><th>Docente</th><th>Estado</th></tr></thead><tbody>
-  {% for exam in group.items %}<tr><td><strong>{{ exam.title }}</strong></td><td>{{ exam.materia|default:"Sin materia" }}</td><td>{{ exam.teacher.get_full_name|default:exam.teacher.username }}</td><td><span class="status-pill {% if exam.published %}status-live{% else %}status-draft{% endif %}">{% if exam.published %}Publicada{% else %}Borrador{% endif %}</span></td></tr>{% endfor %}
-  </tbody></table></div></details>{% empty %}<p class="empty-state">Aún no hay evaluaciones registradas.</p>{% endfor %}
+
+<!-- ==============================================================================
+     GESTIÓN DE PERIODOS Y FINALIZACIÓN DE PARCIALES
+     ============================================================================== -->
+<section class="data-section">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Periodos Académicos</span>
+      <h2>Gestión y Finalización de Parciales</h2>
+      <p>Habilita o finaliza los parciales para regular cuándo los docentes pueden subir o modificar calificaciones.</p>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 1rem; margin-top: 1rem;">
+    {% for cp in parciales_control %}
+    <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; margin-bottom: 0.5rem;">
+          <strong style="color: #002855; font-size: 1rem;">{{ cp.nombre }}</strong>
+          {% if cp.habilitado %}
+            <span class="status-pill status-live" style="font-weight: 700;">Habilitado</span>
+          {% else %}
+            <span class="status-pill status-draft" style="font-weight: 700;">Finalizado / Cerrado</span>
+          {% endif %}
+        </div>
+        <p style="margin: 0; font-size: 0.85rem; color: #64748b;">
+          {% if cp.habilitado %}
+            Los docentes pueden registrar, editar y publicar calificaciones en este periodo.
+          {% else %}
+            Las calificaciones están bloqueadas en modo solo lectura para docentes.
+          {% endif %}
+        </p>
+        {% if cp.finalizado_en %}
+          <small style="display: block; margin-top: 0.4rem; color: #94a3b8; font-size: 0.75rem;">
+            Cerrado el {{ cp.finalizado_en|date:"d/m/Y H:i" }}
+          </small>
+        {% endif %}
+      </div>
+
+      <form method="post" action="{% url 'admin-toggle-parcial' %}" style="margin: 0;">
+        {% csrf_token %}
+        <input type="hidden" name="trimestre" value="{{ cp.trimestre }}">
+        <input type="hidden" name="parcial" value="{{ cp.parcial }}">
+        {% if cp.habilitado %}
+          <input type="hidden" name="accion" value="finalizar">
+          <button type="submit" class="button button-outline button-small" style="width: 100%; border-color: #fca5a5; color: #b91c1c; font-weight: 600;">
+            Finalizar Parcial (Bloquear Calificación)
+          </button>
+        {% else %}
+          <input type="hidden" name="accion" value="habilitar">
+          <button type="submit" class="button button-primary button-small" style="width: 100%; font-weight: 600;">
+            Habilitar Parcial para Calificaciones
+          </button>
+        {% endif %}
+      </form>
+    </div>
+    {% endfor %}
+  </div>
 </section>
+
+<!-- ==============================================================================
+     AUDITORÍA DE CALIFICACIONES AGRUPADA POR CURSO (DESPLEGABLES)
+     ============================================================================== -->
+<details class="level-group data-section" style="margin-bottom: 1.5rem; border-radius: var(--radius-card); overflow: clip; background: var(--surface);">
+  <summary class="section-heading" style="background: var(--surface); padding: 1.25rem 1.5rem; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <span class="eyebrow">Auditoría Académica</span>
+      <h2 style="margin: 0; font-size: 1.25rem;">Calificaciones por Curso</h2>
+      <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #64748b;">Supervisa el avance de calificaciones registradas por curso y los estudiantes evaluados.</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <a class="text-action" href="{% url 'docente-calificaciones-matrix' %}" onclick="event.stopPropagation();">Ir a sábana general</a>
+      <span class="section-count">{{ cursos_calificaciones|length }} cursos</span>
+    </div>
+  </summary>
+
+  <div style="padding: 1.25rem; background: #f8fafc; border-top: 1px solid var(--line);">
+    {% for cdata in cursos_calificaciones %}
+    <details class="level-group" style="margin-bottom: 0.85rem;">
+      <summary>
+        <span>
+          <strong>{{ cdata.curso|format_course_name }}</strong>
+          <small style="color: #64748b; margin-left: 0.5rem; font-weight: normal;">
+            ({{ cdata.con_calificaciones }} de {{ cdata.total_estudiantes }} estudiantes con calificaciones)
+          </small>
+        </span>
+        <span class="section-count">{{ cdata.con_calificaciones }}/{{ cdata.total_estudiantes }}</span>
+      </summary>
+
+      <div style="padding: 1rem 1.25rem; background: #ffffff; border-top: 1px solid #e2e8f0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem;">
+          <div>
+            <span style="font-size: 0.82rem; font-weight: 700; color: #002855; text-transform: uppercase;">Materias del curso:</span>
+            <div style="display: flex; gap: 0.4rem; flex-wrap: wrap; margin-top: 0.25rem;">
+              {% for m in cdata.materias %}
+                <a href="{% url 'docente-calificaciones-matrix' %}?curso={{ cdata.curso.pk }}&materia={{ m.pk }}" class="status-pill" style="background: #eff6ff; color: #1e40af; text-decoration: none; font-size: 0.78rem;">
+                  {{ m.nombre }} →
+                </a>
+              {% empty %}
+                <span style="color: #94a3b8; font-size: 0.82rem;">Sin asignaciones docentes registradas</span>
+              {% endfor %}
+            </div>
+          </div>
+          <a class="button button-small button-outline" href="{% url 'docente-calificaciones-matrix' %}?curso={{ cdata.curso.pk }}">
+            Auditar sábana de este curso
+          </a>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Estudiante</th>
+                <th>Cédula / Usuario</th>
+                <th>Notas Registradas</th>
+                <th>Materias con Nota</th>
+                <th>Promedio General</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for est_item in cdata.estudiantes %}
+              <tr>
+                <td>{{ forloop.counter }}</td>
+                <td><strong>{{ est_item.estudiante.last_name }} {{ est_item.estudiante.first_name }}</strong></td>
+                <td><code>{{ est_item.estudiante.identification|default:est_item.estudiante.username }}</code></td>
+                <td>
+                  {% if est_item.tiene_calificaciones %}
+                    <span class="status-pill status-live">{{ est_item.total_notas }} nota{% if est_item.total_notas != 1 %}s{% endif %}</span>
+                  {% else %}
+                    <span class="status-pill status-draft">Sin notas</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if est_item.materias_calificadas %}
+                    <small style="color: #334155;">{{ est_item.materias_calificadas|join:", " }}</small>
+                  {% else %}
+                    <span style="color: #94a3b8;">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if est_item.promedio_general %}
+                    <strong style="color: #047857; font-size: 0.95rem;">{{ est_item.promedio_general }}</strong>
+                  {% else %}
+                    <span style="color: #94a3b8;">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="6" class="empty-state">No hay estudiantes matriculados en este curso.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+    {% empty %}
+    <p class="empty-state">No hay cursos con estudiantes matriculados.</p>
+    {% endfor %}
+  </div>
+</details>
+
+<!-- ==============================================================================
+     AUDITORÍA DE TAREAS AGRUPADA POR CURSO (DESPLEGABLES)
+     ============================================================================== -->
+<details class="level-group data-section" style="margin-bottom: 1.5rem; border-radius: var(--radius-card); overflow: clip; background: var(--surface);">
+  <summary class="section-heading" style="background: var(--surface); padding: 1.25rem 1.5rem; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <span class="eyebrow">Auditoría Académica</span>
+      <h2 style="margin: 0; font-size: 1.25rem;">Tareas por Curso</h2>
+      <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #64748b;">Supervisión de actividades asignadas por los docentes y avance en entregas.</p>
+    </div>
+    <div style="display: flex; align-items: center; gap: 0.75rem;">
+      <a class="text-action" href="{% url 'docente-tareas-list' %}" onclick="event.stopPropagation();">Ver listado de tareas</a>
+      <span class="section-count">{{ cursos_tareas|length }} cursos</span>
+    </div>
+  </summary>
+
+  <div style="padding: 1.25rem; background: #f8fafc; border-top: 1px solid var(--line);">
+    {% for tgroup in cursos_tareas %}
+    <details class="level-group" style="margin-bottom: 0.85rem;">
+      <summary>
+        <span>
+          <strong>{{ tgroup.curso|format_course_name }}</strong>
+          <small style="color: #64748b; margin-left: 0.5rem; font-weight: normal;">
+            ({{ tgroup.total_tareas }} tarea{% if tgroup.total_tareas != 1 %}s{% endif %})
+          </small>
+        </span>
+        <span class="section-count">{{ tgroup.total_tareas }}</span>
+      </summary>
+
+      <div style="padding: 1rem 1.25rem; background: #ffffff; border-top: 1px solid #e2e8f0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Tarea / Asignatura</th>
+                <th>Docente</th>
+                <th>Trimestre / Parcial</th>
+                <th>Entrega Límite</th>
+                <th>Avance de Entregas</th>
+                <th>Calificados</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in tgroup.tareas %}
+              <tr>
+                <td>
+                  <strong>{{ item.tarea.titulo }}</strong>
+                  <small class="table-subtitle" style="display: block; color: #64748b;">{{ item.tarea.materia.nombre }}</small>
+                </td>
+                <td>{{ item.tarea.docente.get_full_name|default:item.tarea.docente.username }}</td>
+                <td>T{{ item.tarea.trimestre }} · P{{ item.tarea.parcial }}</td>
+                <td><small>{{ item.tarea.fecha_entrega|date:"d/m/Y H:i" }}</small></td>
+                <td>
+                  <div style="display: flex; gap: 0.4rem; align-items: center;">
+                    <span class="status-pill" style="background: #ecfdf5; color: #047857; font-size: 0.75rem;">{{ item.entregados }} entregados</span>
+                    <span class="status-pill" style="background: #fef2f2; color: #b91c1c; font-size: 0.75rem;">{{ item.pendientes }} pendientes</span>
+                  </div>
+                </td>
+                <td>
+                  <span style="font-weight: 600; font-size: 0.85rem;">{{ item.calificados }} / {{ item.total_alumnos }}</span>
+                </td>
+                <td>
+                  <a class="button button-small button-outline" href="{% url 'docente-tarea-detalle' item.tarea.pk %}">
+                    Auditar entregas
+                  </a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="7" class="empty-state">No hay tareas creadas para este curso aún.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+    {% empty %}
+    <p class="empty-state">No hay tareas registradas.</p>
+    {% endfor %}
+  </div>
+</details>
+
+<!-- ==============================================================================
+     SUPERVISIÓN DE MENSAJERÍA Y COMUNICADOS POR CURSO (DESPLEGABLES)
+     ============================================================================== -->
+<details class="level-group data-section" style="margin-bottom: 1.5rem; border-radius: var(--radius-card); overflow: clip; background: var(--surface);">
+  <summary class="section-heading" style="background: var(--surface); padding: 1.25rem 1.5rem; cursor: pointer; list-style: none; display: flex; align-items: center; justify-content: space-between;">
+    <div>
+      <span class="eyebrow">Comunicación Institucional</span>
+      <h2 style="margin: 0; font-size: 1.25rem;">Mensajería y Comunicados por Curso</h2>
+      <p style="margin: 0.25rem 0 0; font-size: 0.85rem; color: #64748b;">Supervisa los comunicados oficiales enviados por la administración y docentes.</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; align-items: center;" onclick="event.stopPropagation();">
+      <a class="button button-small button-primary" href="{% url 'mensajeria:compose' %}">+ Redactar Comunicado</a>
+      <a class="text-action" href="{% url 'mensajeria:inbox' %}" style="display: inline-flex; align-items: center;">Bandeja general</a>
+      <span class="section-count" style="margin-left: 0.5rem;">{{ cursos_mensajes|length }} cursos</span>
+    </div>
+  </summary>
+
+  <div style="padding: 1.25rem; background: #f8fafc; border-top: 1px solid var(--line);">
+    {% for mgroup in cursos_mensajes %}
+    <details class="level-group" style="margin-bottom: 0.85rem;">
+      <summary>
+        <span>
+          <strong>{{ mgroup.curso|format_course_name }}</strong>
+          <small style="color: #64748b; margin-left: 0.5rem; font-weight: normal;">
+            ({{ mgroup.total_mensajes }} comunicado{% if mgroup.total_mensajes != 1 %}s{% endif %})
+          </small>
+        </span>
+        <span class="section-count">{{ mgroup.total_mensajes }}</span>
+      </summary>
+
+      <div style="padding: 1rem 1.25rem; background: #ffffff; border-top: 1px solid #e2e8f0;">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Asunto / Motivo</th>
+                <th>Remitente</th>
+                <th>Fecha de Emisión</th>
+                <th>Lecturas Confirmadas</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in mgroup.mensajes %}
+              <tr>
+                <td><strong>{{ item.mensaje.motivo }}</strong></td>
+                <td>{{ item.mensaje.remitente.get_full_name|default:item.mensaje.remitente.username }}</td>
+                <td><small>{{ item.mensaje.fecha|date:"d/m/Y H:i" }}</small></td>
+                <td>
+                  <span class="status-pill status-live" style="font-size: 0.78rem;">
+                    {{ item.leidos }} de {{ item.total_dest }} leídos
+                  </span>
+                </td>
+                <td>
+                  <a class="text-action" href="{% url 'mensajeria:detail' item.mensaje.pk %}">Ver mensaje</a>
+                </td>
+              </tr>
+              {% empty %}
+              <tr><td colspan="5" class="empty-state">No hay comunicados dirigidos a este curso aún.</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </details>
+    {% empty %}
+    <p class="empty-state">No hay comunicados registrados.</p>
+    {% endfor %}
+  </div>
+</details>
+
+<!-- ==============================================================================
+     REVISIÓN DE EVALUACIONES AGRUPADA POR CURSO (DESPLEGABLES)
+     ============================================================================== -->
+<section class="data-section" id="revision-evaluaciones">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Supervisión Académica</span>
+      <h2>Revisión de Evaluaciones</h2>
+      <p>Supervisa las evaluaciones programadas por los docentes, sus periodos de disponibilidad y estado.</p>
+    </div>
+    {% if total_exams_nuevas %}
+      <span class="status-pill status-review" style="font-weight: 700;">{{ total_exams_nuevas }} nueva{% if total_exams_nuevas != 1 %}s{% endif %}</span>
+    {% endif %}
+  </div>
+
+  {% for egroup in cursos_evaluaciones %}
+  <details class="level-group" style="margin-bottom: 0.85rem;">
+    <summary>
+      <span>
+        <strong>{{ egroup.curso|format_course_name }}</strong>
+        <small style="color: #64748b; margin-left: 0.5rem; font-weight: normal;">
+          ({{ egroup.total_evaluaciones }} evaluación{% if egroup.total_evaluaciones != 1 %}es{% endif %})
+        </small>
+      </span>
+      {% if egroup.nuevas_count %}
+        <span class="badge-nueva" style="margin-left: 0.5rem;">{{ egroup.nuevas_count }} nueva{% if egroup.nuevas_count != 1 %}s{% endif %}</span>
+      {% endif %}
+      <span class="section-count">{{ egroup.total_evaluaciones }}</span>
+    </summary>
+
+    <div style="padding: 1rem 1.25rem; background: #ffffff; border-top: 1px solid #e2e8f0;">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Título</th>
+              <th>Materia</th>
+              <th>Docente</th>
+              <th>Fecha y Hora de Registro</th>
+              <th>Periodo de Disponibilidad</th>
+              <th>Estado Docente</th>
+              <th>Aprobación Admin</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in egroup.evaluaciones %}
+            <tr>
+              <td>
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <strong>{{ item.exam.title }}</strong>
+                  {% if item.is_nueva %}
+                    <span class="badge-nueva">Nueva</span>
+                  {% endif %}
+                </div>
+              </td>
+              <td>{{ item.exam.materia.nombre|default:"Sin materia" }}</td>
+              <td>{{ item.exam.teacher.get_full_name|default:item.exam.teacher.username }}</td>
+              <td>
+                <small style="color: #334155;">{{ item.exam.created_at|date:"d/m/Y H:i" }}</small>
+              </td>
+              <td>
+                <small style="color: #334155; display: block;">
+                  <strong>Desde:</strong> {{ item.exam.available_from|date:"d/m/Y H:i" }}
+                </small>
+                <small style="color: #64748b; display: block;">
+                  <strong>Hasta:</strong> {% if item.exam.available_until %}{{ item.exam.available_until|date:"d/m/Y H:i" }}{% else %}Sin límite{% endif %}
+                </small>
+              </td>
+              <td>
+                <span class="status-pill {% if item.exam.published %}status-live{% else %}status-draft{% endif %}">
+                  {% if item.exam.published %}Publicada{% else %}Borrador{% endif %}
+                </span>
+              </td>
+              <td>
+                {% if item.exam.aprobada %}
+                  <span class="status-pill" style="background: #ecfdf5; color: #047857; font-weight: 700; border-color: #a7f3d0;">✓ Aprobada</span>
+                {% else %}
+                  <span class="status-pill status-review" style="font-weight: 700;">⏳ Pendiente</span>
+                {% endif %}
+              </td>
+              <td class="table-actions">
+                <a class="button button-small button-outline" href="{% url 'exam-results' item.exam.pk %}">
+                  Revisar
+                </a>
+                <form method="post" action="{% url 'admin-toggle-aprobacion-evaluacion' item.exam.pk %}" style="display: inline; margin: 0;">
+                  {% csrf_token %}
+                  {% if item.exam.aprobada %}
+                    <input type="hidden" name="accion" value="desaprobar">
+                    <button type="submit" class="button button-small button-outline" style="border-color: #fca5a5; color: #b91c1c;" title="Quitar aprobación">
+                      Desaprobar
+                    </button>
+                  {% else %}
+                    <input type="hidden" name="accion" value="aprobar">
+                    <button type="submit" class="button button-small button-primary" style="background: #059669; border-color: #059669;" title="Aprobar para que pueda rendirse">
+                      Aprobar
+                    </button>
+                  {% endif %}
+                </form>
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="8" class="empty-state">No hay evaluaciones para este curso aún.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </details>
+  {% empty %}
+  <p class="empty-state">No hay evaluaciones registradas en ningún curso.</p>
+  {% endfor %}
+</section>
+
+<!-- ==============================================================================
+     EVALUACIONES Y AUDITORÍA DE INCIDENCIAS
+     ============================================================================== -->
+<section class="data-section">
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Evaluaciones</span>
+      <h2>Actividad por nivel educativo</h2>
+    </div>
+  </div>
+  {% for group in exam_groups %}
+  <details class="level-group">
+    <summary>{{ group.label }} <span class="section-count">{{ group.items|length }}</span></summary>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Evaluación</th>
+            <th>Materia</th>
+            <th>Docente</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for exam in group.items %}
+          <tr>
+            <td><strong>{{ exam.title }}</strong></td>
+            <td>{{ exam.materia|default:"Sin materia" }}</td>
+            <td>{{ exam.teacher.get_full_name|default:exam.teacher.username }}</td>
+            <td>
+              <span class="status-pill {% if exam.published %}status-live{% else %}status-draft{% endif %}">
+                {% if exam.published %}Publicada{% else %}Borrador{% endif %}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% empty %}
+  <p class="empty-state">Aún no hay evaluaciones registradas.</p>
+  {% endfor %}
+</section>
+
 <section class="data-section filter-directory" data-filter-directory>
-  <div class="section-heading"><div><span class="eyebrow">Seguimiento</span><h2>Auditoría de incidencias</h2><p>Registro de eventos detectados durante las evaluaciones.</p></div></div>
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Seguimiento</span>
+      <h2>Auditoría de incidencias</h2>
+      <p>Registro de eventos detectados durante las evaluaciones.</p>
+    </div>
+  </div>
   <div class="filter-panel">
-    <div class="filter-panel-heading"><div><h3>Filtrar auditoría</h3><p>Nombre, cédula, curso y fecha</p></div><button class="button button-outline button-small filter-clear" type="button" data-filter-clear>Limpiar</button></div>
+    <div class="filter-panel-heading">
+      <div>
+        <h3>Filtrar auditoría</h3>
+        <p>Nombre, cédula, curso y fecha</p>
+      </div>
+      <button class="button button-outline button-small filter-clear" type="button" data-filter-clear>Limpiar</button>
+    </div>
     <div class="filter-fields">
       <label class="filter-field"><span>Nombre</span><input type="search" data-filter-student placeholder="Nombre o cédula" autocomplete="off"></label>
-      <label class="filter-field"><span>Curso</span><select data-filter-course><option value="">Todos los cursos</option>{% for course in filter_courses %}<option value="{{ course.pk }}">{{ course }}</option>{% endfor %}<option value="none">Sin curso asociado</option></select></label>
+      <label class="filter-field">
+        <span>Curso</span>
+        <select data-filter-course>
+          <option value="">Todos los cursos</option>
+          {% for course in filter_courses %}
+            <option value="{{ course.pk }}">{{ course|format_course_name }}</option>
+          {% endfor %}
+          <option value="none">Sin curso asociado</option>
+        </select>
+      </label>
       <label class="filter-field"><span>Mes</span><input type="month" data-filter-month></label>
       <label class="filter-field"><span>Desde</span><input type="date" data-filter-from></label>
       <label class="filter-field"><span>Hasta</span><input type="date" data-filter-to></label>
     </div>
     <div class="filter-panel-footer"><span class="filter-count" data-filter-count aria-live="polite"></span></div>
   </div>
-  <div class="table-wrap"><table><thead><tr><th>Evento</th><th>Estudiante</th><th>Curso</th><th>Evaluación</th><th>Fecha</th><th>Gravedad</th></tr></thead><tbody>
-  {% for incident in recent_incidents %}<tr data-filter-row data-student="{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username|lower }} {{ incident.attempt.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}"><td>{{ incident.get_kind_display }}</td><td>{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username }}<small class="table-subtitle">{{ incident.attempt.student.identification }}</small></td><td>{{ incident.course_name }}</td><td>{{ incident.attempt.exam.title }}</td><td>{{ incident.occurred_at|date:"d/m/Y H:i:s" }}</td><td><span class="status-pill severity-{{ incident.severity }}">{{ incident.get_severity_display }}</span></td></tr>
-  {% empty %}<tr data-filter-no-data><td colspan="6" class="empty-state">Aún no se han registrado incidencias.</td></tr>{% endfor %}
-  </tbody></table></div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Evento</th>
+          <th>Estudiante</th>
+          <th>Curso</th>
+          <th>Evaluación</th>
+          <th>Fecha</th>
+          <th>Gravedad</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for incident in recent_incidents %}
+        <tr data-filter-row data-student="{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username|lower }} {{ incident.attempt.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}" class="incident-clickable-row" title="Haz clic en esta incidencia para descartarla" style="cursor: pointer; transition: background 0.15s ease;">
+          <td>{{ incident.get_kind_display }}</td>
+          <td>
+            {{ incident.attempt.student.get_full_name|default:incident.attempt.student.username }}
+            <small class="table-subtitle">{{ incident.attempt.student.identification }}</small>
+          </td>
+          <td>{{ incident.course_name }}</td>
+          <td>{{ incident.attempt.exam.title }}</td>
+          <td>{{ incident.occurred_at|date:"d/m/Y H:i:s" }}</td>
+          <td>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
+              <span class="status-pill severity-{{ incident.severity }}">{{ incident.get_severity_display }}</span>
+              <button type="button" class="dismiss-incident-btn" title="Descartar incidencia" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 14px; padding: 2px 6px; border-radius: 4px;">✕</button>
+            </div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr data-filter-no-data><td colspan="6" class="empty-state">Aún no se han registrado incidencias.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
   <p class="empty-state filter-empty" data-filter-empty hidden>No hay incidencias que coincidan con los filtros.</p>
 </section>
+
 <section class="data-section filter-directory ticket-directory" data-filter-directory>
-  <div class="section-heading"><div><span class="eyebrow">Secretaría</span><h2>Atención de tickets</h2><p>Tickets organizados por bloque educativo.</p></div><a class="text-action" href="/admin/core/ticketatencion/">Historial completo</a></div>
+  <div class="section-heading">
+    <div>
+      <span class="eyebrow">Secretaría</span>
+      <h2>Atención de tickets</h2>
+      <p>Tickets organizados por bloque educativo.</p>
+    </div>
+    <a class="text-action" href="/admin/core/ticketatencion/">Historial completo</a>
+  </div>
   <form method="post" action="{% url 'ticket-attention' %}" class="ticket-attention-form">
     {% csrf_token %}
     <label for="ticket-code">Atender por código</label>
@@ -42,31 +584,117 @@
     <button class="button button-primary" type="submit">Atender ticket</button>
   </form>
   <div class="filter-panel">
-    <div class="filter-panel-heading"><div><h3>Filtrar tickets</h3><p>Nombre, cédula, curso y fecha</p></div><button class="button button-outline button-small filter-clear" type="button" data-filter-clear>Limpiar</button></div>
+    <div class="filter-panel-heading">
+      <div>
+        <h3>Filtrar tickets</h3>
+        <p>Nombre, cédula, curso y fecha</p>
+      </div>
+      <button class="button button-outline button-small filter-clear" type="button" data-filter-clear>Limpiar</button>
+    </div>
     <div class="filter-fields">
       <label class="filter-field"><span>Nombre</span><input type="search" data-filter-student placeholder="Nombre o cédula" autocomplete="off"></label>
-      <label class="filter-field"><span>Curso</span><select data-filter-course><option value="">Todos los cursos</option>{% for course in filter_courses %}<option value="{{ course.pk }}">{{ course }}</option>{% endfor %}<option value="none">Sin curso asociado</option></select></label>
+      <label class="filter-field">
+        <span>Curso</span>
+        <select data-filter-course>
+          <option value="">Todos los cursos</option>
+          {% for course in filter_courses %}
+            <option value="{{ course.pk }}">{{ course|format_course_name }}</option>
+          {% endfor %}
+          <option value="none">Sin curso asociado</option>
+        </select>
+      </label>
       <label class="filter-field"><span>Mes</span><input type="month" data-filter-month></label>
       <label class="filter-field"><span>Desde</span><input type="date" data-filter-from></label>
       <label class="filter-field"><span>Hasta</span><input type="date" data-filter-to></label>
     </div>
     <div class="filter-panel-footer"><span class="filter-count" data-filter-count aria-live="polite"></span></div>
   </div>
-  {% for group in ticket_groups %}<details class="level-group ticket-level-group" open data-ticket-group>
+  {% for group in ticket_groups %}
+  <details class="level-group ticket-level-group" data-ticket-group>
     <summary>{{ group.label }} <span class="section-count" data-ticket-group-count>{{ group.items|length }}</span></summary>
-    {% for course_group in group.course_groups %}<details class="incident-course-group ticket-course-group" data-filter-group>
+    {% for course_group in group.course_groups %}
+    <details class="incident-course-group ticket-course-group" data-filter-group>
       <summary><strong>{{ course_group.course_name }}</strong><span><b data-group-count>{{ course_group.students|length }}</b> estudiante{% if course_group.students|length != 1 %}s{% endif %}</span></summary>
-      <div class="incident-student-list">{% for student_group in course_group.students %}<details class="incident-student-group" data-filter-group>
-        <summary><strong>{{ student_group.student_name }}</strong><span><b data-group-count>{{ student_group.tickets|length }}</b> ticket{% if student_group.tickets|length != 1 %}s{% endif %}</span></summary>
-        <div class="table-wrap"><table><thead><tr><th>Código</th><th>Tipo</th><th>Estado</th><th>Fecha y hora</th><th>Atendido por</th></tr></thead><tbody>
-          {% for ticket in student_group.tickets %}<tr data-filter-row data-student="{{ ticket.student_name|lower }} {{ ticket.student_identification }}" data-course="{{ ticket.filter_course_id }}" data-date="{{ ticket.filter_date }}">
-            <td><strong>{{ ticket.codigo }}</strong></td><td>{{ ticket.get_tipo_display }}</td><td><span class="status-pill {% if ticket.estado == 'PENDIENTE' %}status-review{% else %}status-done{% endif %}">{{ ticket.get_estado_display }}</span></td><td>{{ ticket.creado_en|date:"d/m/Y H:i:s" }}</td><td>{{ ticket.atendido_por|default:"—" }}</td>
-          </tr>{% endfor %}
-        </tbody></table></div>
-      </details>{% endfor %}</div>
-    </details>{% endfor %}
-  </details>{% endfor %}
+      <div class="incident-student-list">
+        {% for student_group in course_group.students %}
+        <details class="incident-student-group" data-filter-group>
+          <summary><strong>{{ student_group.student_name }}</strong><span><b data-group-count>{{ student_group.tickets|length }}</b> ticket{% if student_group.tickets|length != 1 %}s{% endif %}</span></summary>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th>
+                  <th>Tipo</th>
+                  <th>Estado</th>
+                  <th>Fecha y hora</th>
+                  <th>Atendido por</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for ticket in student_group.tickets %}
+                <tr data-filter-row data-student="{{ ticket.student_name|lower }} {{ ticket.student_identification }}" data-course="{{ ticket.filter_course_id }}" data-date="{{ ticket.filter_date }}">
+                  <td><strong>{{ ticket.codigo }}</strong></td>
+                  <td>{{ ticket.get_tipo_display }}</td>
+                  <td><span class="status-pill {% if ticket.estado == 'PENDIENTE' %}status-review{% else %}status-done{% endif %}">{{ ticket.get_estado_display }}</span></td>
+                  <td>{{ ticket.creado_en|date:"d/m/Y H:i:s" }}</td>
+                  <td>{{ ticket.atendido_por|default:"—" }}</td>
+                  <td class="table-actions">
+                    {% if ticket.intento_id %}
+                      <a class="text-action" href="{% url 'report-download' ticket.intento_id %}" title="Descargar informe PDF del intento">Informe PDF</a>
+                    {% else %}
+                      <span class="muted">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </details>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </details>
+  {% endfor %}
   <p class="empty-state filter-empty" data-filter-empty hidden>No hay tickets que coincidan con los filtros.</p>
 </section>
 {% endblock %}
-{% block scripts %}<script src="{% static 'js/ticket_filters.js' %}" defer></script>{% endblock %}
+{% block scripts %}
+<script src="{% static 'js/ticket_filters.js' %}" defer></script>
+<script>
+  document.addEventListener("DOMContentLoaded", function() {
+    // Descartar/eliminar fila de incidencia al hacer clic sobre ella o en su botón
+    document.querySelectorAll(".incident-clickable-row").forEach(function(row) {
+      row.addEventListener("click", function(e) {
+        // Efecto visual de desvanecimiento
+        row.style.transition = "opacity 0.25s ease, transform 0.25s ease";
+        row.style.opacity = "0";
+        row.style.transform = "translateX(10px)";
+        setTimeout(function() {
+          row.remove();
+          // Actualizar contador del filtro si existe
+          const countElem = document.querySelector("[data-filter-directory] [data-filter-count]");
+          const remainingRows = document.querySelectorAll("[data-filter-directory] tbody tr.incident-clickable-row").length;
+          if (countElem) {
+            countElem.textContent = remainingRows + " incidencia" + (remainingRows === 1 ? "" : "s") + " encontrada" + (remainingRows === 1 ? "" : "s");
+          }
+        }, 250);
+      });
+    });
+
+    // Descartar notificaciones tipo mensaje (alertas toast/message) al hacer clic
+    document.querySelectorAll(".messages .message, .public-messages .message").forEach(function(msg) {
+      msg.style.cursor = "pointer";
+      msg.title = "Haz clic para cerrar esta notificación";
+      msg.addEventListener("click", function() {
+        msg.style.transition = "opacity 0.2s ease, transform 0.2s ease";
+        msg.style.opacity = "0";
+        msg.style.transform = "translateY(-6px)";
+        setTimeout(function() { msg.remove(); }, 200);
+      });
+    });
+  });
+</script>
+{% endblock %}

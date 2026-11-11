@@ -38,6 +38,19 @@
       </div>
     </div>
 
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+      <div>
+        <label for="{{ form.trimestre.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Trimestre *</label>
+        {{ form.trimestre }}
+        {% if form.trimestre.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.trimestre.errors.0 }}</span>{% endif %}
+      </div>
+      <div>
+        <label for="{{ form.parcial.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Parcial *</label>
+        {{ form.parcial }}
+        {% if form.parcial.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.parcial.errors.0 }}</span>{% endif %}
+      </div>
+    </div>
+
     <div style="margin-bottom: 1.5rem;">
       <label for="{{ form.titulo.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Título de la Tarea *</label>
       {{ form.titulo }}

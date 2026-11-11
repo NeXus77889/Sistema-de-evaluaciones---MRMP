@@ -16,10 +16,30 @@
     </p>
   </div>
   <div style="display: flex; gap: 0.5rem;">
+    {% if not es_admin and request.user.rol != 'ADMIN' %}
     <a class="button button-outline" href="{% url 'docente-tarea-edit' tarea.pk %}">Editar Tarea</a>
+    {% endif %}
     <a class="button button-outline" href="{% url 'docente-tareas-list' %}">Volver</a>
   </div>
 </div>
+
+{% if es_admin or request.user.rol == 'ADMIN' %}
+<div style="background: #eff6ff; border-left: 4px solid #2563eb; color: #1e40af; padding: 0.85rem 1.25rem; border-radius: 0.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <strong>Modo Auditoría y Supervisión (Administrador)</strong>
+    <p style="margin: 0.2rem 0 0; font-size: 0.88rem; color: #1e40af;">Supervisión de entregas de solo lectura. Los docentes asignados son los responsables de calificar.</p>
+  </div>
+  <span class="status-pill status-live">Supervisión</span>
+</div>
+{% elif not parcial_habilitado %}
+<div style="background: #fef2f2; border-left: 4px solid #dc2626; color: #991b1b; padding: 0.85rem 1.25rem; border-radius: 0.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+  <div>
+    <strong>Periodo Finalizado / Bloqueado</strong>
+    <p style="margin: 0.2rem 0 0; font-size: 0.88rem; color: #991b1b;">El Trimestre {{ tarea.trimestre }} - Parcial {{ tarea.parcial }} está cerrado por la administración. No es posible ingresar calificaciones.</p>
+  </div>
+  <span class="status-pill status-draft">Cerrado</span>
+</div>
+{% endif %}
 
 {% if tarea.descripcion %}
 <div style="background: #ffffff; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1.5rem;">
@@ -129,7 +149,7 @@
             </td>
             <td>
               {% if item.calificacion is not None %}
-                <strong style="font-size: 1.05rem; {% if item.calificacion >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                <strong class="{% if item.calificacion >= 7 %}grade-pass{% else %}grade-fail{% endif %}" style="font-size: 1.05rem;">
                   {{ item.calificacion }} / 10.00
                 </strong>
                 {% if item.retroalimentacion %}
@@ -140,12 +160,12 @@
               {% endif %}
             </td>
             <td>
-              {% if item.entrega %}
-                <button type="button" class="button button-small button-outline" onclick="openGradeModal('{{ item.entrega.pk }}', '{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}', '{{ item.calificacion|default:'' }}', '{{ item.retroalimentacion|escapejs }}')">
-                  {% if item.calificacion is not None %}Re-calificar{% else %}Calificar{% endif %}
-                </button>
+              {% if not es_admin and request.user.rol != 'ADMIN' and parcial_habilitado %}
+              <button type="button" class="button button-small button-outline" onclick="openGradeModal('{{ item.entrega.pk|default:'' }}', '{{ item.estudiante.pk }}', '{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}', '{{ item.calificacion|default:'' }}', '{{ item.retroalimentacion|escapejs }}')">
+                {% if item.calificacion is not None %}Re-calificar{% else %}Calificar{% endif %}
+              </button>
               {% else %}
-                <span style="color: #cbd5e1; font-size: 0.8rem;">No entregado</span>
+              <span style="color: #94a3b8; font-size: 0.82rem;">Solo lectura</span>
               {% endif %}
             </td>
           </tr>
@@ -168,10 +188,11 @@
     <form method="post">
       {% csrf_token %}
       <input type="hidden" name="calificar_entrega_id" id="modalEntregaId">
+      <input type="hidden" name="calificar_estudiante_id" id="modalEstudianteId">
 
       <div style="margin-bottom: 1.25rem;">
-        <label for="modalGradeInput" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Calificación (0.00 - 10.00) *</label>
-        <input type="number" step="0.01" min="0" max="10" name="calificacion" id="modalGradeInput" required style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 1.1rem; font-weight: 700;">
+        <label for="modalGradeInput" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Calificación (0.00 - 10.00, vacío para borrar)</label>
+        <input type="number" step="0.01" min="0" max="10" name="calificacion" id="modalGradeInput" placeholder="Sin nota" style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 1.1rem; font-weight: 700;">
       </div>
 
       <div style="margin-bottom: 1.5rem;">
@@ -188,8 +209,9 @@
 </div>
 
 <script>
-  function openGradeModal(entregaId, studentName, grade, feedback) {
-    document.getElementById("modalEntregaId").value = entregaId;
+  function openGradeModal(entregaId, estudianteId, studentName, grade, feedback) {
+    document.getElementById("modalEntregaId").value = entregaId || "";
+    document.getElementById("modalEstudianteId").value = estudianteId || "";
     document.getElementById("modalStudentName").textContent = "Calificar a " + studentName;
     document.getElementById("modalGradeInput").value = grade || "";
     document.getElementById("modalFeedbackInput").value = feedback || "";

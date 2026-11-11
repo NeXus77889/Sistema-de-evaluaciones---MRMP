@@ -6,11 +6,13 @@
 {% block content %}
 <div class="page-heading">
   <div>
-    <span class="eyebrow">Módulo Docente</span>
-    <h1>Gestión de Tareas</h1>
-    <p>Crea tareas académicas, supervisa las entregas y califica a tus estudiantes.</p>
+    <span class="eyebrow">{% if request.user.rol == 'ADMIN' %}Auditoría Administrativa{% else %}Módulo Docente{% endif %}</span>
+    <h1>{% if request.user.rol == 'ADMIN' %}Supervisión de Tareas{% else %}Gestión de Tareas{% endif %}</h1>
+    <p>{% if request.user.rol == 'ADMIN' %}Supervisión institucional de tareas académicas y control de entregas por curso.{% else %}Crea tareas académicas, supervisa las entregas y califica a tus estudiantes.{% endif %}</p>
   </div>
+  {% if request.user.rol != 'ADMIN' %}
   <a class="button button-primary" href="{% url 'docente-tarea-create' %}">+ Nueva Tarea</a>
+  {% endif %}
 </div>
 
 <!-- Filtros de búsqueda -->
@@ -95,14 +97,17 @@
             </td>
             <td class="table-actions">
               <a class="button button-small button-primary" href="{% url 'docente-tarea-detalle' item.tarea.pk %}" style="padding: 0.25rem 0.6rem; font-size: 0.8rem;">Matriz</a>
+              {% if request.user.rol != 'ADMIN' %}
               <a class="text-action" href="{% url 'docente-tarea-edit' item.tarea.pk %}">Editar</a>
+              {% endif %}
             </td>
           </tr>
         {% empty %}
           <tr>
             <td colspan="7" class="empty-state" style="padding: 2.5rem; text-align: center; color: #64748b;">
-              No tienes tareas registradas con los filtros seleccionados.<br><br>
+              No hay tareas registradas con los filtros seleccionados.{% if request.user.rol != 'ADMIN' %}<br><br>
               <a href="{% url 'docente-tarea-create' %}" class="button button-primary">Crear tu primera tarea</a>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}

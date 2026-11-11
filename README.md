@@ -63,6 +63,20 @@ python manage.py importar_docentes ruta/al/archivo.xlsx
 
 Las asignaciones se relacionan por docente, materia y curso, y las claves temporales aparecen en el mismo reporte protegido del Admin.
 
+### Personal institucional (docentes y administrativos)
+
+Para cargar a todo el personal con la plantilla institucional (`cedula`, `nombre`, `correo`, `telefono`, `funcion_tutoria`, `atencion_*`, `asignatura`, `curso_paralelo`, `horas_carga`) usa **Admin > Cursos o Usuarios > Importar personal** (solo superusuarios) o:
+
+```bash
+python manage.py importar_personal ruta/al/archivo.xlsx
+```
+
+- El rol sale de `funcion_tutoria`: tutorías por curso ("3° A", "Inicial 1") y docentes de asignatura quedan como **Docente**; Rector/a, Administrador/a, Secretaría, Inspección, Coordinación, Cámaras y Asistente administrativo quedan como **Administrador**. Rector/a, Administrador/a y Secretaría reciben además acceso de staff. Las palabras clave se editan en `backend/apps/usuarios/personal.py`.
+- Las funciones que no se reconocen (por ejemplo DECE o Colectora) y las filas sin cédula se omiten y aparecen en el reporte como "No importado". Las cuentas existentes de estudiantes o superusuarios nunca se modifican.
+- La clave inicial de las cuentas nuevas es su cédula y deben cambiarla al ingresar (también el rol Administrador, salvo superusuarios). Reimportar no restablece claves.
+- El nombre se separa quitando títulos (Lcda., MSc., etc.): los dos últimos apellidos van al final. Revisa apellidos compuestos en el Admin.
+- Si una fila trae asignatura y curso, se crea la asignación docente. Si solo trae asignatura, queda indicada como pendiente en el reporte.
+
 Para SMTP, configura `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` y `DEFAULT_FROM_EMAIL`. Sin credenciales SMTP válidas, la generación del PDF puede completarse, pero el correo fallará y quedará registrado en los logs.
 
 ## Pruebas
