@@ -19,7 +19,7 @@
   <article class="stat-card"><span>Usuarios activos</span><strong>{{ user_count }}</strong><small>cuentas registradas</small></article>
   <article class="stat-card"><span>Docentes</span><strong>{{ teacher_count }}</strong><small>con acceso activo</small></article>
   <article class="stat-card"><span>Estudiantes</span><strong>{{ student_count }}</strong><small>con acceso activo</small></article>
-  <article class="stat-card stat-accent"><span>Evaluaciones</span><strong>{{ exam_count }}</strong><small>{{ attempt_count }} intentos · {{ incident_count }} señales</small></article>
+  <article class="stat-card"><span>Evaluaciones</span><strong>{{ exam_count }}</strong><small>{{ attempt_count }} intentos · {{ incident_count }} señales</small></article>
 </section>
 
 <!-- ==============================================================================
@@ -543,7 +543,7 @@
       </thead>
       <tbody>
         {% for incident in recent_incidents %}
-        <tr data-filter-row data-student="{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username|lower }} {{ incident.attempt.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}" class="incident-clickable-row" title="Haz clic en esta incidencia para descartarla" style="cursor: pointer; transition: background 0.15s ease;">
+        <tr data-filter-row data-student="{{ incident.attempt.student.get_full_name|default:incident.attempt.student.username|lower }} {{ incident.attempt.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}" class="incident-clickable-row" title="Haz clic para marcar esta incidencia como revisada" style="cursor: pointer; transition: background 0.15s ease;">
           <td>{{ incident.get_kind_display }}</td>
           <td>
             {{ incident.attempt.student.get_full_name|default:incident.attempt.student.username }}
@@ -555,12 +555,15 @@
           <td>
             <div style="display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;">
               <span class="status-pill severity-{{ incident.severity }}">{{ incident.get_severity_display }}</span>
-              <button type="button" class="dismiss-incident-btn" title="Descartar incidencia" style="background: none; border: none; cursor: pointer; color: #94a3b8; font-size: 14px; padding: 2px 6px; border-radius: 4px;">✕</button>
+              <form method="post" action="{% url 'review-incident' incident.pk %}" class="review-incident-form">
+                {% csrf_token %}
+                <button type="submit" class="dismiss-incident-btn" title="Marcar como revisada" aria-label="Marcar incidencia como revisada" style="min-height:0; padding:2px 7px; border:0; box-shadow:none; background:transparent; color:var(--blue);">✓</button>
+              </form>
             </div>
           </td>
         </tr>
         {% empty %}
-        <tr data-filter-no-data><td colspan="6" class="empty-state">Aún no se han registrado incidencias.</td></tr>
+        <tr data-filter-no-data><td colspan="6" class="empty-state">No hay incidencias pendientes de revisión.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -665,22 +668,12 @@
 <script src="{% static 'js/ticket_filters.js' %}" defer></script>
 <script>
   document.addEventListener("DOMContentLoaded", function() {
-    // Descartar/eliminar fila de incidencia al hacer clic sobre ella o en su botón
+    // Marcar la incidencia como revisada y quitar su notificación de forma persistente.
     document.querySelectorAll(".incident-clickable-row").forEach(function(row) {
       row.addEventListener("click", function(e) {
-        // Efecto visual de desvanecimiento
-        row.style.transition = "opacity 0.25s ease, transform 0.25s ease";
-        row.style.opacity = "0";
-        row.style.transform = "translateX(10px)";
-        setTimeout(function() {
-          row.remove();
-          // Actualizar contador del filtro si existe
-          const countElem = document.querySelector("[data-filter-directory] [data-filter-count]");
-          const remainingRows = document.querySelectorAll("[data-filter-directory] tbody tr.incident-clickable-row").length;
-          if (countElem) {
-            countElem.textContent = remainingRows + " incidencia" + (remainingRows === 1 ? "" : "s") + " encontrada" + (remainingRows === 1 ? "" : "s");
-          }
-        }, 250);
+        if (e.target.closest("form")) return;
+        const form = row.querySelector(".review-incident-form");
+        if (form) form.requestSubmit();
       });
     });
 

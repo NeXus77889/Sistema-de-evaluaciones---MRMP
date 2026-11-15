@@ -609,6 +609,7 @@
               <th class="cal-th-insumo{% if forloop.counter|divisibleby:2 %} is-alt{% endif %}">
                 <strong>{{ ins.nombre }}</strong>
                 <small>Peso: {{ ins.ponderacion }}%</small>
+                {% if ins.tarea_id %}<small>Equivalencia: nota sobre {{ ins.tarea.nota_maxima }} → escala /10</small>{% endif %}
                 {% if ins.tarea_id %}<span class="cal-tag-tarea">Tarea</span>{% endif %}
               </th>
               {% endfor %}
@@ -638,6 +639,7 @@
                   class="grade-input" placeholder="—"
                   {% if es_admin or not parcial_habilitado %}readonly disabled{% endif %}
                   aria-label="Nota de {{ item.estudiante.last_name }} {{ item.estudiante.first_name }} en {{ ni.insumo.nombre }}">
+                {% if ni.nota_tarea is not None %}<small class="cal-task-grade-source">Nota de la tarea: {{ ni.nota_tarea }} / {{ ni.insumo.tarea.nota_maxima }}</small>{% endif %}
               </td>
               {% endfor %}
 

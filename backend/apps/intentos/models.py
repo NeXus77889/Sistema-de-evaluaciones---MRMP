@@ -74,6 +74,10 @@ class Incident(models.Model):
         MICROPHONE_LOST = "microphone_lost", "Micrófono desconectado"
         CAMERA_MUTED = "camera_muted", "Cámara desactivada"
         MICROPHONE_MUTED = "microphone_muted", "Micrófono desactivado"
+        FULLSCREEN_EXIT = "fullscreen_exit", "Salida de pantalla completa"
+        DEVICE_DISABLED = "device_disabled", "Cámara o micrófono desactivado"
+        FACE_MISSING = "face_missing", "Rostro no detectado"
+        PHONE_DETECTED = "phone_detected", "Teléfono detectado"
 
     class Severity(models.TextChoices):
         LOW = "low", "Baja"
@@ -98,3 +102,22 @@ class Incident(models.Model):
 
     def __str__(self):
         return f"{self.get_kind_display()} ({self.occurred_at:%Y-%m-%d %H:%M:%S})"
+
+
+class IncidentReview(models.Model):
+    incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="reviews")
+    reviewer = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="reviewed_incidents",
+    )
+    reviewed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=["incident", "reviewer"], name="one_incident_review_per_user")
+        ]
+        ordering = ["-reviewed_at"]
+
+    def __str__(self):
+        return f"Incidencia {self.incident_id} revisada por {self.reviewer_id}"

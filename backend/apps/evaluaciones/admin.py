@@ -503,7 +503,7 @@ class ExamAdmin(admin.ModelAdmin):
 
 @admin.register(Tarea)
 class TareaAdmin(admin.ModelAdmin):
-    list_display = ("titulo", "curso_display", "materia", "docente", "fecha_entrega", "peso_porcentual", "activo")
+    list_display = ("titulo", "curso_display", "materia", "docente", "fecha_entrega", "nota_maxima", "peso_porcentual", "activo")
     list_filter = ("curso", "materia", "activo")
     search_fields = ("titulo", "descripcion", "docente__username", "docente__first_name", "docente__last_name")
 

@@ -65,8 +65,8 @@
             </td>
             <td>
               {% if item.entrega and item.entrega.calificacion is not None %}
-                <strong style="font-size: 1.05rem; {% if item.entrega.calificacion >= 7 %}color: #047857;{% else %}color: #dc2626;{% endif %}">
-                  {{ item.entrega.calificacion }} / 10.00
+                <strong style="font-size: 1.05rem; {% if item.entrega.calificacion >= item.nota_minima_aprobacion %}color: #047857;{% else %}color: #dc2626;{% endif %}">
+                  {{ item.entrega.calificacion }} / {{ item.tarea.nota_maxima }}
                 </strong>
               {% else %}
                 <span style="color: #94a3b8; font-style: italic;">Sin calificar</span>

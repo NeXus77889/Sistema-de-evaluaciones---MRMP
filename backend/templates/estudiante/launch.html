@@ -11,12 +11,12 @@
   <div class="camera-frame" id="camera-frame"><video id="camera-preview" autoplay muted playsinline></video><span class="camera-caption"><span class="live-dot"></span>Vista previa local</span></div>
 </section>
 <section id="exam-shell" class="exam-shell" hidden>
-  <div class="exam-toolbar"><div><span class="eyebrow">{{ exam.title }}</span><p id="question-progress">Pregunta 1 de 1</p></div><div class="timer-box"><small>Tiempo restante</small><strong id="exam-timer">--:--</strong></div></div>
+  <div class="exam-toolbar"><div><span class="eyebrow">{{ exam.title }}</span><p id="question-progress">Pregunta 1 de 1</p></div><div class="incident-counter" role="status" aria-live="polite"><small>Incidencias registradas</small><strong id="incident-count">0 / 3</strong></div><div class="timer-box"><small>Tiempo restante</small><strong id="exam-timer">--:--</strong></div></div>
   <div id="monitor-warning" class="monitor-warning" hidden role="alert"></div>
   <div class="exam-layout"><nav id="question-nav" class="question-nav" aria-label="Navegar preguntas"></nav><article class="exam-question-panel"><div class="question-topline"><span id="question-number" class="question-number">01</span><span id="question-points" class="muted"></span></div><h2 id="question-text"></h2><fieldset id="answer-options" class="answer-options"><legend class="sr-only">Selecciona una respuesta</legend></fieldset><div class="question-actions"><button class="button button-outline" id="previous-question" type="button">Anterior</button><button class="button button-primary" id="next-question" type="button">Siguiente</button></div></article></div>
   <div class="exam-submit-row"><span id="save-status" class="muted" aria-live="polite">Las respuestas se guardan automáticamente.</span><button id="submit-exam" class="button button-submit" type="button">Entregar evaluación</button></div>
   <div class="focus-lock" id="focus-lock" role="alertdialog" aria-modal="true" aria-labelledby="focus-lock-title" hidden><div><span class="eyebrow">Dispositivo obligatorio</span><h2 id="focus-lock-title">Revisa cámara y micrófono</h2><p>La evaluación está pausada. Restablece los permisos de ambos dispositivos para continuar.</p><p id="restore-device-status" class="inline-error" role="status"></p><button class="button button-primary" id="restore-devices" type="button">Restablecer dispositivos</button></div></div>
 </section>
-<script src="{% static 'js/exam_runner.js' %}" defer></script>
+<script src="{% static 'js/exam_runner.js' %}?v=3" defer></script>
 {% endif %}
 {% endblock %}

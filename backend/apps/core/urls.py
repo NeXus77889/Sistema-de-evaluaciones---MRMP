@@ -15,6 +15,7 @@ from apps.core.views import (
     exam_results,
     exam_runner,
     report_download,
+    review_incident,
     result_detail,
     ticket_attention,
     ticket_password,
@@ -25,9 +26,11 @@ from apps.evaluaciones.task_views import (
     docente_tarea_detalle,
     docente_tarea_form,
     docente_tareas_list,
+    entrega_tarea_archivo,
     estudiante_calificaciones_boletin,
     estudiante_tarea_entrega,
     estudiante_tareas_list,
+    tarea_archivo_adjunto,
 )
 
 urlpatterns = [
@@ -64,9 +67,12 @@ urlpatterns = [
     path("intento/<int:attempt_id>/realizar/", exam_runner, name="exam-runner"),
     path("intento/<int:attempt_id>/resultado/", result_detail, name="result-detail"),
     path("intento/<int:attempt_id>/informe/", report_download, name="report-download"),
+    path("incidencias/<int:incident_id>/revisar/", review_incident, name="review-incident"),
     # Módulo de Tareas y Entregas (Docente)
     path("docente/tareas/", docente_tareas_list, name="docente-tareas-list"),
     path("docente/tareas/nueva/", docente_tarea_form, name="docente-tarea-create"),
+    path("tareas/entregas/<int:entrega_id>/archivo/", entrega_tarea_archivo, name="entrega-tarea-archivo"),
+    path("tareas/<int:tarea_id>/adjunto/", tarea_archivo_adjunto, name="tarea-archivo-adjunto"),
     path("docente/tareas/<int:tarea_id>/", docente_tarea_detalle, name="docente-tarea-detalle"),
     path("docente/tareas/<int:tarea_id>/editar/", docente_tarea_form, name="docente-tarea-edit"),
     # Módulo de Calificaciones Institucional (Docente)

@@ -121,6 +121,34 @@ class AttemptApiTests(TestCase):
         self.assertEqual(assessment.score, 14)
         self.assertEqual(assessment.level, "BAJO")
 
+    def test_incident_count_endpoint_returns_live_count_only_to_attempt_owner(self):
+        attempt_id = self.start_attempt()
+        count_url = reverse("attempt-incident-count", args=[attempt_id])
+        self.assertEqual(self.client.get(count_url).data["incident_count"], 0)
+        self.client.post(
+            reverse("attempt-incident", args=[attempt_id]),
+            {"kind": Incident.Kind.TAB_HIDDEN, "client_event_id": str(uuid.uuid4())},
+            format="json",
+        )
+        response = self.client.get(count_url)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["incident_count"], 1)
+        self.assertEqual(response.data["incident_limit"], 3)
+        self.client.force_authenticate(self.other_student)
+        self.assertEqual(self.client.get(count_url).status_code, 404)
+
+    def test_non_device_incident_also_creates_a_visible_support_ticket(self):
+        attempt_id = self.start_attempt()
+        response = self.client.post(
+            reverse("attempt-incident", args=[attempt_id]),
+            {"kind": Incident.Kind.FULLSCREEN_EXIT, "client_event_id": str(uuid.uuid4())},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["security_ticket_code"])
+        ticket = TicketAtencion.objects.get(codigo=response.data["security_ticket_code"])
+        self.assertEqual(ticket.tipo, TicketAtencion.Tipo.PROCTOR)
+
     def test_device_incident_creates_idempotent_proctor_ticket(self):
         attempt_id = self.start_attempt()
         event_id = str(uuid.uuid4())
@@ -144,14 +172,14 @@ class AttemptApiTests(TestCase):
         self.assertEqual(ticket.intento_id, attempt_id)
         self.assertEqual(ticket.estudiante, self.student)
         self.assertEqual(TicketAtencion.objects.filter(tipo=TicketAtencion.Tipo.PROCTOR).count(), 1)
-        self.assertTrue(first.data["auto_submitted"])
+        self.assertFalse(first.data["auto_submitted"])
         self.assertEqual(
             Attempt.objects.get(pk=attempt_id).status,
-            Attempt.Status.SUBMITTED,
+            Attempt.Status.IN_PROGRESS,
         )
 
     @patch("apps.intentos.views.create_report_safely")
-    def test_device_loss_automatically_finishes_attempt(self, create_report):
+    def test_device_loss_counts_toward_three_incident_limit(self, create_report):
         attempt_id = self.start_attempt()
 
         response = self.client.post(
@@ -160,11 +188,31 @@ class AttemptApiTests(TestCase):
             format="json",
         )
 
-        attempt = Attempt.objects.get(pk=attempt_id)
         self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.data["auto_submitted"])
+        self.assertEqual(Attempt.objects.get(pk=attempt_id).status, Attempt.Status.IN_PROGRESS)
+        self.assertEqual(TicketAtencion.objects.filter(tipo=TicketAtencion.Tipo.PROCTOR).count(), 1)
+        for kind in [Incident.Kind.TAB_HIDDEN, Incident.Kind.FULLSCREEN_EXIT]:
+            response = self.client.post(
+                reverse("attempt-incident", args=[attempt_id]),
+                {"kind": kind, "client_event_id": str(uuid.uuid4())},
+                format="json",
+            )
+        attempt = Attempt.objects.get(pk=attempt_id)
         self.assertTrue(response.data["auto_submitted"])
         self.assertEqual(attempt.status, Attempt.Status.SUBMITTED)
         create_report.assert_called_once_with(attempt)
+
+    def test_fullscreen_exit_uses_same_three_incident_limit(self):
+        attempt_id = self.start_attempt()
+        for number in range(3):
+            response = self.client.post(
+                reverse("attempt-incident", args=[attempt_id]),
+                {"kind": Incident.Kind.FULLSCREEN_EXIT, "client_event_id": str(uuid.uuid4())},
+                format="json",
+            )
+            self.assertEqual(response.data["incident_count"], number + 1)
+        self.assertTrue(response.data["auto_submitted"])
 
     @patch("apps.intentos.views.create_report_safely")
     def test_third_focus_offense_submits_the_attempt(self, create_report):

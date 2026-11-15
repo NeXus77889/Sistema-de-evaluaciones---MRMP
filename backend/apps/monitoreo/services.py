@@ -12,6 +12,10 @@ EVENT_WEIGHTS = {
     Incident.Kind.MICROPHONE_LOST: int(getattr(settings, "PROCTOR_WEIGHT_MICROPHONE_LOST", 20)),
     Incident.Kind.CAMERA_MUTED: int(getattr(settings, "PROCTOR_WEIGHT_CAMERA_MUTED", 14)),
     Incident.Kind.MICROPHONE_MUTED: int(getattr(settings, "PROCTOR_WEIGHT_MICROPHONE_MUTED", 14)),
+    Incident.Kind.FULLSCREEN_EXIT: int(getattr(settings, "PROCTOR_WEIGHT_FULLSCREEN_EXIT", 12)),
+    Incident.Kind.DEVICE_DISABLED: int(getattr(settings, "PROCTOR_WEIGHT_DEVICE_DISABLED", 14)),
+    Incident.Kind.FACE_MISSING: int(getattr(settings, "PROCTOR_WEIGHT_FACE_MISSING", 10)),
+    Incident.Kind.PHONE_DETECTED: int(getattr(settings, "PROCTOR_WEIGHT_PHONE_DETECTED", 20)),
 }
 MAX_DURATION_POINTS_PER_EVENT = 20
 DURATION_POINTS_PER_30_SECONDS = 1

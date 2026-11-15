@@ -132,6 +132,20 @@ class AttemptStateView(APIView):
         )
 
 
+class AttemptIncidentCountView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, attempt_id):
+        require_student(request.user)
+        attempt = get_object_or_404(Attempt, pk=attempt_id, student=request.user)
+        return Response({
+            "attempt_id": attempt.pk,
+            "incident_count": Incident.objects.filter(attempt=attempt).count(),
+            "incident_limit": 3,
+            "status": attempt.status,
+        })
+
+
 class SaveAnswerView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -178,30 +192,23 @@ class RecordIncidentView(APIView):
             if previous_incident:
                 if previous_incident.attempt_id != attempt.pk:
                     raise ValidationError("El identificador del evento ya fue utilizado.")
-                ticket_code = (
-                    f"SEC-PROCTOR-{attempt.pk}-{previous_incident.pk}"
-                    if previous_incident.kind in {
-                        Incident.Kind.CAMERA_LOST,
-                        Incident.Kind.MICROPHONE_LOST,
-                        Incident.Kind.CAMERA_MUTED,
-                        Incident.Kind.MICROPHONE_MUTED,
-                    }
-                    else None
+                ticket_code = f"SEC-PROCTOR-{attempt.pk}-{previous_incident.pk}"
+                TicketAtencion.objects.get_or_create(
+                    codigo=ticket_code,
+                    defaults={
+                        "tipo": TicketAtencion.Tipo.PROCTOR,
+                        "estudiante": attempt.student,
+                        "intento": attempt,
+                        "creado_por": request.user,
+                    },
                 )
-                focus_count = None
-                if previous_incident.kind in {
-                    Incident.Kind.TAB_HIDDEN,
-                    Incident.Kind.WINDOW_BLUR,
-                }:
-                    focus_count = Incident.objects.filter(
-                        attempt=attempt,
-                        kind__in=[Incident.Kind.TAB_HIDDEN, Incident.Kind.WINDOW_BLUR],
-                    ).count()
+                focus_count = Incident.objects.filter(attempt=attempt).count()
                 return Response(
                     {
                         "received": True,
                         "duplicate": True,
                         "focus_offense_count": focus_count,
+                        "incident_count": focus_count,
                         "auto_submitted": False,
                         "security_ticket_code": ticket_code,
                     },
@@ -230,40 +237,20 @@ class RecordIncidentView(APIView):
             created = True
         if incident.attempt_id != attempt.pk:
             raise ValidationError("El identificador del evento ya fue utilizado.")
-        security_ticket_code = None
-        if kind in {
-            Incident.Kind.CAMERA_LOST,
-            Incident.Kind.MICROPHONE_LOST,
-            Incident.Kind.CAMERA_MUTED,
-            Incident.Kind.MICROPHONE_MUTED,
-        }:
-            security_ticket_code = f"SEC-PROCTOR-{attempt.pk}-{incident.pk}"
-            if created:
-                TicketAtencion.objects.create(
-                    codigo=security_ticket_code,
-                    tipo=TicketAtencion.Tipo.PROCTOR,
-                    estudiante=attempt.student,
-                    intento=attempt,
-                    creado_por=request.user,
-                )
+        security_ticket_code = f"SEC-PROCTOR-{attempt.pk}-{incident.pk}"
+        TicketAtencion.objects.get_or_create(
+            codigo=security_ticket_code,
+            defaults={
+                "tipo": TicketAtencion.Tipo.PROCTOR,
+                "estudiante": attempt.student,
+                "intento": attempt,
+                "creado_por": request.user,
+            },
+        )
         focus_offense_count = None
         auto_submitted = False
-        if kind in {Incident.Kind.TAB_HIDDEN, Incident.Kind.WINDOW_BLUR}:
-            focus_offense_count = Incident.objects.filter(
-                attempt=attempt,
-                kind__in=[Incident.Kind.TAB_HIDDEN, Incident.Kind.WINDOW_BLUR],
-            ).count()
-            if focus_offense_count >= 3 and attempt.status == Attempt.Status.IN_PROGRESS:
-                finished, changed = finish_attempt(attempt.pk)
-                auto_submitted = changed
-                if changed:
-                    create_report_safely(finished)
-        elif kind in {
-            Incident.Kind.CAMERA_LOST,
-            Incident.Kind.MICROPHONE_LOST,
-            Incident.Kind.CAMERA_MUTED,
-            Incident.Kind.MICROPHONE_MUTED,
-        }:
+        focus_offense_count = Incident.objects.filter(attempt=attempt).count()
+        if focus_offense_count >= 3 and attempt.status == Attempt.Status.IN_PROGRESS:
             finished, auto_submitted = finish_attempt(attempt.pk)
             if auto_submitted:
                 create_report_safely(finished)
@@ -272,6 +259,7 @@ class RecordIncidentView(APIView):
                 "received": True,
                 "duplicate": not created,
                 "focus_offense_count": focus_offense_count,
+                "incident_count": focus_offense_count,
                 "auto_submitted": auto_submitted,
                 "security_ticket_code": security_ticket_code,
             },

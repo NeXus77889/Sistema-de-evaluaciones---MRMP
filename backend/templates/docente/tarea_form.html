@@ -70,10 +70,18 @@
         {% if form.fecha_entrega.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.fecha_entrega.errors.0 }}</span>{% endif %}
       </div>
       <div>
-        <label for="{{ form.peso_porcentual.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Peso Porcentual (%)</label>
-        {{ form.peso_porcentual }}
-        {% if form.peso_porcentual.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.peso_porcentual.errors.0 }}</span>{% endif %}
+        <label for="{{ form.nota_maxima.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Nota máxima de la tarea</label>
+        {{ form.nota_maxima }}
+        <small style="display:block;color:#64748b;margin-top:.3rem;">Ejemplo: 100, 20 o 5. Las calificaciones se convierten a escala de 10 para el promedio.</small>
+        {% if form.nota_maxima.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.nota_maxima.errors.0 }}</span>{% endif %}
       </div>
+    </div>
+
+    <div style="margin-bottom: 1.5rem;">
+      <label for="{{ form.peso_porcentual.id_for_label }}" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Peso de esta tarea en el promedio del parcial (%)</label>
+      {{ form.peso_porcentual }}
+      <small style="display:block;color:#64748b;margin-top:.3rem;">Este porcentaje define cuánto influye la nota en el parcial; no es la nota máxima de la tarea.</small>
+      {% if form.peso_porcentual.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.peso_porcentual.errors.0 }}</span>{% endif %}
     </div>
 
     <div style="margin-bottom: 1.5rem;">
@@ -82,7 +90,7 @@
       {% if form.archivo_adjunto.errors %}<span style="color: #dc2626; font-size: 0.8rem;">{{ form.archivo_adjunto.errors.0 }}</span>{% endif %}
       {% if tarea and tarea.archivo_adjunto %}
         <p style="font-size: 0.85rem; color: #64748b; margin-top: 0.4rem;">
-          Archivo actual: <a href="{{ tarea.archivo_adjunto.url }}" target="_blank" style="color: #2563eb;">{{ tarea.archivo_adjunto.name }}</a>
+          Archivo actual: <a href="{% url 'tarea-archivo-adjunto' tarea.pk %}" target="_blank" style="color: #2563eb;">{{ tarea.archivo_adjunto.name }}</a>
         </p>
       {% endif %}
     </div>

@@ -25,7 +25,36 @@
   let deadline = 0;
   let away = null;
   let timerHandle;
+  let incidentPollHandle;
+  let incidentPollBusy = false;
+  let deviceIncidentActive = false;
   const tracks = {};
+
+  function renderIncidentCount(count) {
+    const counter = document.querySelector("#incident-count");
+    if (counter) counter.textContent = `${Math.min(Number(count) || 0, 3)} / 3`;
+  }
+
+  async function refreshIncidentCount() {
+    if (!attemptId || incidentPollBusy) return;
+    incidentPollBusy = true;
+    try {
+      const response = await fetch(`/api/evaluaciones/intento/${attemptId}/incidencias/conteo/`, {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      renderIncidentCount(data.incident_count);
+      if (data.status !== "in_progress" && !shell.hidden) {
+        await finishExam(true, "La evaluación ya fue entregada.");
+      }
+    } catch (_) {
+      // El siguiente sondeo recupera el contador al volver la conexión.
+    } finally {
+      incidentPollBusy = false;
+    }
+  }
 
   function updateDevice(name, ready, label) {
     const [indicator, text] = statusLabels[name];
@@ -52,6 +81,7 @@
       });
       if (!response.ok) throw new Error("incident confirmation failed");
       const result = await response.json();
+      renderIncidentCount(result.incident_count ?? result.focus_offense_count);
       if (result.focus_offense_count !== null && result.focus_offense_count !== undefined) {
         warning.hidden = false;
         warning.textContent = `Advertencia: ${result.focus_offense_count} de 3 infracciones registradas.`;
@@ -101,13 +131,11 @@
     };
     track.addEventListener("mute", () => {
       if (tracks[name] !== track) return;
-      sendIncident(name === "camera" ? "camera_muted" : "microphone_muted");
       setState();
     });
     track.addEventListener("unmute", setState);
     track.addEventListener("ended", () => {
       if (tracks[name] !== track) return;
-      sendIncident(name === "camera" ? "camera_lost" : "microphone_lost");
       updateDevice(name, false, "Dispositivo desconectado");
       setLocked(true, "La interacción está pausada. Restablece cámara y micrófono para continuar.");
     });
@@ -140,6 +168,19 @@
 
   restoreDevicesButton.addEventListener("click", restoreDevices);
 
+  window.setInterval(() => {
+    if (!attemptId) return;
+    const ready = [tracks.camera, tracks.microphone].every((track) =>
+      track && track.readyState === "live" && track.enabled && !track.muted
+    );
+    if (ready) {
+      deviceIncidentActive = false;
+    } else if (!deviceIncidentActive) {
+      deviceIncidentActive = true;
+      sendIncident("device_disabled");
+    }
+  }, 500);
+
   function maybeResumeAway() {
     if (!away || document.visibilityState !== "visible" || !document.hasFocus()) return;
     const elapsed = Math.max(0, Date.now() - away.startedAt);
@@ -158,6 +199,9 @@
     if (!away) away = { kind: "window_blur", startedAt: Date.now() };
   });
   window.addEventListener("focus", maybeResumeAway);
+  document.addEventListener("fullscreenchange", () => {
+    if (attemptId && !shell.hidden && !document.fullscreenElement) sendIncident("fullscreen_exit");
+  });
 
   function renderQuestion() {
     const question = questions[currentIndex];
@@ -175,23 +219,26 @@
       radio.name = `question-${question.id}`;
       radio.value = option.id;
       radio.checked = answers.get(question.id) === option.id;
+      radio.disabled = answers.has(question.id) || lock.hidden === false;
       const text = document.createElement("span");
       text.textContent = option.text;
       radio.addEventListener("change", () => saveAnswer(question.id, option.id));
       label.append(radio, text);
       options.append(label);
     }
-    document.querySelector("#previous-question").disabled = currentIndex === 0 || lock.hidden === false;
+    document.querySelector("#previous-question").disabled = true;
     document.querySelector("#next-question").disabled = currentIndex === questions.length - 1 || lock.hidden === false;
     document.querySelectorAll("#question-nav button").forEach((button, index) => {
       button.classList.toggle("is-current", index === currentIndex);
       button.classList.toggle("is-answered", answers.has(questions[index].id));
+      button.disabled = index < currentIndex || lock.hidden === false;
     });
   }
 
   async function saveAnswer(questionId, optionId) {
     const saveStatus = document.querySelector("#save-status");
     saveStatus.textContent = "Guardando respuesta…";
+    document.querySelectorAll(`#answer-options input[name="question-${questionId}"]`).forEach((input) => { input.disabled = true; });
     try {
       const response = await fetch(`/api/evaluaciones/intento/${attemptId}/respuesta/`, {
         method: "POST",
@@ -205,6 +252,7 @@
       renderQuestion();
     } catch (error) {
       saveStatus.textContent = "No se guardó. Comprueba tu conexión y vuelve a seleccionar la respuesta.";
+      renderQuestion();
     }
   }
 
@@ -215,6 +263,7 @@
     document.querySelector("#exam-timer").textContent = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
     if (!remaining) {
       clearInterval(timerHandle);
+      clearInterval(incidentPollHandle);
       finishExam(true);
     }
   }
@@ -267,10 +316,13 @@
       button.type = "button";
       button.textContent = String(index + 1).padStart(2, "0");
       button.setAttribute("aria-label", `Ir a pregunta ${index + 1}`);
-      button.addEventListener("click", () => { currentIndex = index; renderQuestion(); });
+      button.addEventListener("click", () => {
+        if (index < currentIndex || lock.hidden === false) return;
+        currentIndex = index;
+        renderQuestion();
+      });
       nav.append(button);
     });
-    document.querySelector("#previous-question").addEventListener("click", () => { currentIndex = Math.max(0, currentIndex - 1); renderQuestion(); });
     document.querySelector("#next-question").addEventListener("click", () => { currentIndex = Math.min(questions.length - 1, currentIndex + 1); renderQuestion(); });
     document.querySelector("#submit-exam").addEventListener("click", () => {
       if (window.confirm("¿Entregar la evaluación? Esta acción no se puede deshacer.")) finishExam(false);
@@ -278,6 +330,8 @@
     renderQuestion();
     updateTimer();
     timerHandle = window.setInterval(updateTimer, 1000);
+    await refreshIncidentCount();
+    incidentPollHandle = window.setInterval(refreshIncidentCount, 1000);
     shell.append(cameraFrame);
     cameraFrame.classList.add("exam-camera-preview");
     preflight.hidden = true;
@@ -320,6 +374,9 @@
     begin.disabled = true;
     preflightError.textContent = "";
     try {
+      if (document.documentElement.requestFullscreen) {
+        try { await document.documentElement.requestFullscreen(); } catch (_) { /* El navegador puede denegar pantalla completa. */ }
+      }
       const startResponse = await fetch(preflight.dataset.startUrl, {
         method: "POST",
         headers: { "X-CSRFToken": csrf },

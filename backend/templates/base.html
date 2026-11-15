@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}Evaluaciones{% endblock %} · Aula</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=26">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=29">
   {% block extra_head %}{% endblock %}
 </head>
 <body class="{% block body_class %}{% endblock %}">
@@ -28,6 +28,7 @@
 
         <div class="sidebar-section-title">Evaluaciones</div>
         {% if request.user.rol == 'DOCENTE' %}
+          <a class="nav-link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}" href="{% url 'dashboard' %}">Evaluaciones</a>
           <a class="nav-link{% if request.resolver_match.url_name == 'exam-create' %} is-active{% endif %}" href="{% url 'exam-create' %}">Nueva evaluación</a>
         {% elif request.user.rol == 'ESTUDIANTE' %}
           <a class="nav-link{% if request.resolver_match.url_name == 'dashboard' %} is-active{% endif %}" href="{% url 'dashboard' %}">Mis evaluaciones</a>
@@ -107,36 +108,18 @@
     {% if messages %}<div class="public-messages">{% for message in messages %}<div class="message {{ message.tags }}" role="status">{{ message }}</div>{% endfor %}</div>{% endif %}
     {% block public_content %}{% endblock %}
   {% endif %}
-  <dialog id="support-ticket-dialog" class="support-ticket-dialog" aria-labelledby="support-ticket-title">
-    <form id="support-ticket-form" class="support-ticket-form">
+  <dialog id="support-notice-dialog" class="support-ticket-dialog" aria-labelledby="support-notice-title">
+    <section class="support-ticket-result">
       <button type="button" class="support-ticket-close" data-ticket-close aria-label="Cerrar">Cerrar</button>
       <span class="eyebrow">Atención de Secretaría</span>
-      <h2 id="support-ticket-title">Solicitar ayuda</h2>
-      <p id="support-ticket-description">Generaremos un código para presentar en Secretaría.</p>
-      <label id="support-ticket-email-wrap" for="support-ticket-email" hidden>
-        Correo registrado
-        <input id="support-ticket-email" type="email" autocomplete="email">
-      </label>
-      <p id="support-ticket-error" class="support-ticket-error" role="alert" hidden></p>
+      <h2 id="support-notice-title">¿Necesitas ayuda para acceder?</h2>
+      <p>Por favor, acérquese a Secretaría para reportar el error y que le puedan ayudar.</p>
       <div class="support-ticket-actions">
-        <button class="button button-primary" type="submit">Generar código</button>
-        <button class="button button-outline" type="button" data-ticket-close>Cancelar</button>
-      </div>
-    </form>
-    <section id="support-ticket-result" class="support-ticket-result" hidden>
-      <span class="eyebrow">Presente este código</span>
-      <h2>Atención requerida</h2>
-      <p>Acérquese a Secretaría y presente este código de atención:</p>
-      <output id="support-ticket-code"></output>
-      <p id="support-ticket-result-error" class="support-ticket-error" role="alert" hidden></p>
-      <div class="support-ticket-actions">
-        <button class="button button-primary" type="button" data-ticket-copy>Copiar código</button>
-        <button class="button button-outline" type="button" data-ticket-print>Imprimir ticket</button>
-        <button class="button button-outline" type="button" data-ticket-close>Cerrar</button>
+        <button class="button button-primary" type="button" data-ticket-close>Entendido</button>
       </div>
     </section>
   </dialog>
-  <script src="{% static 'js/support_ticket.js' %}" defer></script>
+  <script src="{% static 'js/support_ticket.js' %}?v=4" defer></script>
   <script src="{% static 'js/sidebar_toggle.js' %}?v=2" defer></script>
   <script>
     document.addEventListener("DOMContentLoaded", function() {

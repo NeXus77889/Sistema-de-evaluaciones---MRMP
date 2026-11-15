@@ -17,6 +17,7 @@ from apps.evaluaciones.academic import (
 from apps.evaluaciones.docx_import import parse_docx_questions
 from apps.evaluaciones.models import (
     AsignacionDocente,
+    ControlParcial,
     Curso,
     EntregaTarea,
     InsumoCalificacion,
@@ -274,6 +275,41 @@ class TareasAndEntregasRBACAndLifecycleTests(TestCase):
         entrega_tardia = EntregaTarea.objects.get(tarea=tarea_vencida, estudiante=self.estudiante)
         self.assertEqual(entrega_tardia.estado, EntregaTarea.ESTADO_ATRASADO)
 
+    def test_uploaded_delivery_file_is_served_to_student_and_assigned_teacher_only(self):
+        tarea = Tarea.objects.create(
+            docente=self.docente,
+            materia=self.materia,
+            curso=self.curso,
+            titulo="Archivo consultable",
+            fecha_entrega=timezone.now() + timedelta(days=2),
+            archivo_adjunto=SimpleUploadedFile("guia.pdf", b"%PDF-1.4 guia"),
+        )
+        entrega = EntregaTarea.objects.create(
+            tarea=tarea,
+            estudiante=self.estudiante,
+            archivo=SimpleUploadedFile("trabajo.pdf", b"%PDF-1.4 muestra"),
+        )
+        url = reverse("entrega-tarea-archivo", args=[entrega.pk])
+
+        self.client.force_login(self.docente)
+        teacher_response = self.client.get(url)
+        self.assertEqual(teacher_response.status_code, 200)
+        self.assertEqual(b"".join(teacher_response.streaming_content), b"%PDF-1.4 muestra")
+        self.assertIn("inline", teacher_response["Content-Disposition"])
+        teacher_response.close()
+
+        self.client.force_login(self.estudiante)
+        student_response = self.client.get(url)
+        self.assertEqual(student_response.status_code, 200)
+        student_response.close()
+
+        attachment_response = self.client.get(reverse("tarea-archivo-adjunto", args=[tarea.pk]))
+        self.assertEqual(attachment_response.status_code, 200)
+        attachment_response.close()
+
+        self.client.force_login(self.otro_docente)
+        self.assertEqual(self.client.get(url).status_code, 404)
+
     def test_docente_califica_entrega_and_bounds_validation(self):
         tarea = Tarea.objects.create(
             docente=self.docente,
@@ -421,6 +457,7 @@ class CalificacionesRunachayTests(TestCase):
         self.assertContains(resp2, "10.0")
 
     def test_tarea_asegurar_insumo_and_bidirectional_sync(self):
+        ControlParcial.objects.create(trimestre=2, parcial=1, habilitado=True)
         tarea = Tarea.objects.create(
             curso=self.curso,
             materia=self.materia,
@@ -428,6 +465,7 @@ class CalificacionesRunachayTests(TestCase):
             titulo="Investigación de Álgebra",
             trimestre=2,
             parcial=1,
+            nota_maxima=Decimal("100.00"),
             fecha_entrega=timezone.now() + timedelta(days=2),
             peso_porcentual=Decimal("15.00"),
         )
@@ -435,6 +473,7 @@ class CalificacionesRunachayTests(TestCase):
         self.assertEqual(tarea.insumo.trimestre, 2)
         self.assertEqual(tarea.insumo.parcial, 1)
         self.assertEqual(tarea.insumo.ponderacion, Decimal("15.00"))
+        self.assertEqual(tarea.nota_maxima, Decimal("100.00"))
 
         # Calificar entrega desde docente_tarea_detalle
         self.client.force_login(self.docente)
@@ -443,7 +482,7 @@ class CalificacionesRunachayTests(TestCase):
             url_detalle,
             {
                 "calificar_estudiante_id": self.estudiante.pk,
-                "calificacion": "9.50",
+                "calificacion": "95.00",
                 "retroalimentacion": "Excelente trabajo",
             },
         )
@@ -452,12 +491,22 @@ class CalificacionesRunachayTests(TestCase):
         # Verificar que se creó RegistroCalificacion sincronizado
         registro = RegistroCalificacion.objects.get(insumo=tarea.insumo, estudiante=self.estudiante)
         self.assertEqual(registro.nota, Decimal("9.50"))
+        entrega = EntregaTarea.objects.get(tarea=tarea, estudiante=self.estudiante)
+        self.assertEqual(entrega.calificacion, Decimal("95.00"))
+
+        url_matrix = f"{reverse('docente-calificaciones-matrix')}?curso={self.curso.pk}&materia={self.materia.pk}&trimestre=2&parcial=1"
+        matrix_response = self.client.get(url_matrix)
+        matrix_row = matrix_response.context["matriz_estudiantes"][0]
+        task_note = next(note for note in matrix_row["notas_insumos"] if note["insumo"].pk == tarea.insumo.pk)
+        self.assertEqual(task_note["nota"], Decimal("9.50"))
+        self.assertEqual(task_note["nota_tarea"], Decimal("95.00"))
+        self.assertContains(matrix_response, "Nota de la tarea:")
 
         # Modificar nota desde la sábana y verificar sincronización hacia EntregaTarea
         registro.nota = Decimal("8.00")
         registro.save()
         entrega = EntregaTarea.objects.get(tarea=tarea, estudiante=self.estudiante)
-        self.assertEqual(entrega.calificacion, Decimal("8.00"))
+        self.assertEqual(entrega.calificacion, Decimal("80.00"))
 
         # Borrar nota (dejar en blanco) y verificar que se limpia en ambos
         resp_clear = self.client.post(
@@ -514,6 +563,43 @@ class CalificacionesRunachayTests(TestCase):
             HTTP_X_REQUESTED_WITH="XMLHttpRequest",
         )
         self.assertEqual(resp_invalid.status_code, 400)
+
+    def test_create_participation_insumo_redirects_to_its_selected_period(self):
+        ControlParcial.objects.create(trimestre=2, parcial=2, habilitado=True)
+        self.client.force_login(self.docente)
+        url = f"{reverse('docente-calificaciones-matrix')}?curso={self.curso.pk}&materia={self.materia.pk}&trimestre=1&parcial=1"
+
+        response = self.client.post(url, {
+            "action": "create_insumo",
+            "nombre": "Participación en clase",
+            "tipo": InsumoCalificacion.TIPO_INSUMO_2,
+            "trimestre": "2",
+            "parcial": "2",
+            "ponderacion": "15.00",
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("trimestre=2&parcial=2", response.url)
+        insumo = InsumoCalificacion.objects.get(nombre="Participación en clase")
+        self.assertEqual(insumo.tipo, InsumoCalificacion.TIPO_INSUMO_2)
+        self.assertEqual((insumo.trimestre, insumo.parcial), (2, 2))
+
+    def test_create_insumo_for_closed_period_shows_message_without_server_error(self):
+        self.client.force_login(self.docente)
+        url = f"{reverse('docente-calificaciones-matrix')}?curso={self.curso.pk}&materia={self.materia.pk}&trimestre=1&parcial=1"
+
+        response = self.client.post(url, {
+            "action": "create_insumo",
+            "nombre": "Participación bloqueada",
+            "tipo": InsumoCalificacion.TIPO_INSUMO_2,
+            "trimestre": "2",
+            "parcial": "1",
+            "ponderacion": "15.00",
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "está cerrado")
+        self.assertFalse(InsumoCalificacion.objects.filter(nombre="Participación bloqueada").exists())
 
     def test_convertir_periodos_command(self):
         from django.core.management import call_command

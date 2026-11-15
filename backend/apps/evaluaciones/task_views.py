@@ -1,9 +1,10 @@
 from decimal import Decimal, InvalidOperation
+import mimetypes
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.db import models, transaction
-from django.http import Http404, HttpResponseForbidden, JsonResponse
+from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 from django.utils import timezone
@@ -46,6 +47,60 @@ def _is_estudiante(user):
     return user.is_authenticated and user.rol == "ESTUDIANTE"
 
 
+def _serve_task_file(request, tarea, archivo):
+    """Serve uploaded task files through authenticated, ownership-checked URLs."""
+    name = archivo.name.rsplit("/", 1)[-1]
+    content_type, _ = mimetypes.guess_type(name)
+    inline = content_type == "application/pdf" or bool(content_type and content_type.startswith("image/"))
+    try:
+        file_handle = archivo.open("rb")
+    except (FileNotFoundError, OSError, ValueError):
+        raise Http404("El archivo ya no está disponible en el almacenamiento.")
+    response = FileResponse(
+        file_handle,
+        as_attachment=not inline,
+        filename=name,
+        content_type=content_type or "application/octet-stream",
+    )
+    response["X-Content-Type-Options"] = "nosniff"
+    response["Cache-Control"] = "private, no-store"
+    return response
+
+
+@login_required
+def tarea_archivo_adjunto(request, tarea_id):
+    tarea = get_object_or_404(Tarea, pk=tarea_id)
+    if not tarea.archivo_adjunto:
+        raise Http404
+    if _is_estudiante(request.user):
+        if not tarea.curso.estudiantes.filter(pk=request.user.pk).exists():
+            raise Http404
+    elif not _is_docente(request.user) or not (
+        request.user.is_superuser or request.user.rol == "ADMIN" or tarea.docente_id == request.user.pk
+    ):
+        raise Http404
+    return _serve_task_file(request, tarea, tarea.archivo_adjunto)
+
+
+@login_required
+def entrega_tarea_archivo(request, entrega_id):
+    entrega = get_object_or_404(
+        EntregaTarea.objects.select_related("tarea", "estudiante", "tarea__curso"),
+        pk=entrega_id,
+    )
+    if not entrega.archivo:
+        raise Http404
+    if _is_estudiante(request.user):
+        allowed = entrega.estudiante_id == request.user.pk
+    else:
+        allowed = _is_docente(request.user) and (
+            request.user.is_superuser or request.user.rol == "ADMIN" or entrega.tarea.docente_id == request.user.pk
+        )
+    if not allowed:
+        raise Http404
+    return _serve_task_file(request, entrega.tarea, entrega.archivo)
+
+
 # ==============================================================================
 # DOCENTE: MÓDULO DE TAREAS Y ENTREGAS
 # ==============================================================================
@@ -83,6 +138,7 @@ def docente_tareas_list(request):
             "entregados": entregados,
             "pendientes": pendientes,
             "calificados": calificados,
+            "nota_minima_aprobacion": (t.nota_maxima * Decimal("0.70")).quantize(Decimal("0.01")),
         })
 
     # Cursos y materias asignados para filtro
@@ -193,14 +249,14 @@ def docente_tarea_detalle(request, tarea_id):
         else:
             try:
                 val_dec = Decimal(calif_val.replace(",", "."))
-                if Decimal("0.00") <= val_dec <= Decimal("10.00"):
+                if Decimal("0.00") <= val_dec <= tarea.nota_maxima:
                     entrega.calificacion = val_dec
                     entrega.retroalimentacion = retro
                     entrega.fecha_calificacion = timezone.now()
                     entrega.save()
                     messages.success(request, f"Calificación guardada para {entrega.estudiante.get_full_name()}.")
                 else:
-                    messages.error(request, "La calificación debe estar entre 0.00 y 10.00.")
+                    messages.error(request, f"La calificación debe estar entre 0.00 y {tarea.nota_maxima}.")
             except (InvalidOperation, ValueError):
                 messages.error(request, "Valor de calificación no válido.")
         return redirect("docente-tarea-detalle", tarea_id=tarea.pk)
@@ -246,6 +302,7 @@ def docente_tarea_detalle(request, tarea_id):
         "conteo_calificados": conteo_calificados,
         "es_admin": es_admin,
         "parcial_habilitado": parcial_habilitado,
+        "nota_minima_aprobacion": (tarea.nota_maxima * Decimal("0.70")).quantize(Decimal("0.01")),
     })
 
 
@@ -572,15 +629,24 @@ def docente_calificaciones_matrix(request):
             nombre_ins = request.POST.get("nombre", "").strip()
             tipo_ins = request.POST.get("tipo", InsumoCalificacion.TIPO_INSUMO_1)
             ponderacion_val = request.POST.get("ponderacion", "35.00").strip()
-            trim_ins = int(request.POST.get("trimestre", selected_trimestre))
-            parc_ins = int(request.POST.get("parcial", selected_parcial))
-            asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
-            docente_para_insumo = (
-                user if user.rol == "DOCENTE"
-                else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
-            )
+            redirect_trimestre, redirect_parcial = selected_trimestre, selected_parcial
             try:
+                trim_ins = int(request.POST.get("trimestre", selected_trimestre))
+                parc_ins = int(request.POST.get("parcial", selected_parcial))
+                if trim_ins not in (1, 2, 3) or parc_ins not in (1, 2):
+                    raise ValueError("Selecciona un trimestre y parcial válidos.")
+                if tipo_ins not in dict(InsumoCalificacion.TIPOS):
+                    raise ValueError("Selecciona un tipo de insumo válido.")
+                if not ControlParcial.es_habilitado(trim_ins, parc_ins):
+                    raise ValueError(f"El Trimestre {trim_ins} - Parcial {parc_ins} está cerrado.")
                 pond_dec = Decimal(ponderacion_val.replace(",", "."))
+                if not Decimal("0.01") <= pond_dec <= Decimal("100.00"):
+                    raise ValueError("La ponderación debe estar entre 0.01% y 100%.")
+                asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
+                docente_para_insumo = (
+                    user if user.rol == "DOCENTE"
+                    else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
+                )
                 InsumoCalificacion.objects.create(
                     curso=selected_curso,
                     materia=selected_materia,
@@ -592,11 +658,12 @@ def docente_calificaciones_matrix(request):
                     ponderacion=pond_dec,
                     periodo=f"Trimestre {trim_ins} - Parcial {parc_ins}",
                 )
+                redirect_trimestre, redirect_parcial = trim_ins, parc_ins
                 messages.success(request, "Nuevo insumo académico creado.")
-            except (InvalidOperation, ValueError) as err:
+            except (InvalidOperation, ValueError, ValidationError) as err:
                 messages.error(request, f"Error al crear insumo: {err}")
             return redirect(
-                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={redirect_trimestre}&parcial={redirect_parcial}"
             )
 
     insumos_parcial = []
@@ -687,6 +754,14 @@ def docente_calificaciones_matrix(request):
             insumo__in=todos_insumos
         ).select_related("insumo", "estudiante")
         reg_map = {(r.insumo_id, r.estudiante_id): r.nota for r in registros}
+        task_ids = [ins.tarea_id for ins in insumos_parcial if ins.tarea_id]
+        entrega_grade_map = {
+            (entrega.tarea_id, entrega.estudiante_id): entrega.calificacion
+            for entrega in EntregaTarea.objects.filter(
+                tarea_id__in=task_ids,
+                estudiante__in=selected_curso.estudiantes.filter(is_active=True),
+            )
+        }
 
         estudiantes = selected_curso.estudiantes.filter(is_active=True).order_by("last_name", "first_name")
 
@@ -700,6 +775,7 @@ def docente_calificaciones_matrix(request):
                 notas_insumos.append({
                     "insumo": ins,
                     "nota": nota,
+                    "nota_tarea": entrega_grade_map.get((ins.tarea_id, est.pk)) if ins.tarea_id else None,
                 })
                 if nota is not None:
                     suma_ponderada += nota * ins.ponderacion

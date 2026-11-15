@@ -39,7 +39,7 @@ from apps.evaluaciones.models import (
     Tarea,
 )
 from apps.mensajeria.models import Mensaje
-from apps.intentos.models import Attempt, Incident
+from apps.intentos.models import Attempt, Incident, IncidentReview
 from apps.core.models import TicketAtencion
 from apps.usuarios.models import User
 
@@ -76,7 +76,7 @@ def _teacher_incident_groups(teacher):
     incidents = list(
         Incident.objects.filter(
             attempt__exam__teacher=teacher,
-        )
+        ).exclude(reviews__reviewer=teacher)
         .select_related("attempt__student", "attempt__exam__curso")
         .prefetch_related("attempt__student__cursos", "attempt__exam__cursos")
         .order_by("-occurred_at", "-pk")
@@ -89,6 +89,7 @@ def _teacher_incident_groups(teacher):
             Incident.Kind.MICROPHONE_LOST,
             Incident.Kind.CAMERA_MUTED,
             Incident.Kind.MICROPHONE_MUTED,
+            Incident.Kind.DEVICE_DISABLED,
         }
     ]
     ticket_states = dict(
@@ -124,6 +125,7 @@ def _teacher_incident_groups(teacher):
                 Incident.Kind.MICROPHONE_LOST,
                 Incident.Kind.CAMERA_MUTED,
                 Incident.Kind.MICROPHONE_MUTED,
+                Incident.Kind.DEVICE_DISABLED,
             }
             else ""
         )
@@ -264,6 +266,26 @@ def _prepare_incidents(incidents):
         incident.course_name = str(course) if course else "Sin curso asociado"
         incident.filter_date = incident.occurred_at.date().isoformat()
     return incidents
+
+
+def _unreviewed_incidents(user, queryset=None):
+    queryset = queryset if queryset is not None else Incident.objects.all()
+    return queryset.exclude(reviews__reviewer=user).distinct()
+
+
+@login_required
+@require_POST
+def review_incident(request, incident_id):
+    incident = get_object_or_404(Incident.objects.select_related("attempt__exam"), pk=incident_id)
+    if request.user.rol == User.Role.TEACHER:
+        if incident.attempt.exam.teacher_id != request.user.pk:
+            return HttpResponseForbidden("No puedes revisar incidencias de otra evaluación.")
+    elif not _is_secretary(request.user):
+        return HttpResponseForbidden("No tienes permiso para revisar incidencias.")
+
+    IncidentReview.objects.get_or_create(incident=incident, reviewer=request.user)
+    messages.success(request, "Incidencia marcada como revisada.")
+    return redirect("dashboard")
 
 
 def _group_by_subject(items, exam_getter=lambda item: item):
@@ -727,13 +749,13 @@ def dashboard(request):
             "student_count": User.objects.filter(rol=User.Role.STUDENT, is_active=True).count(),
             "exam_count": Exam.objects.count(),
             "attempt_count": Attempt.objects.count(),
-            "incident_count": Incident.objects.count(),
+            "incident_count": _unreviewed_incidents(user).count(),
             "recent_incidents": _prepare_incidents(
-                Incident.objects.select_related(
+                _unreviewed_incidents(user, Incident.objects.select_related(
                     "attempt__student", "attempt__exam__curso"
                 ).prefetch_related(
                     "attempt__student__cursos", "attempt__exam__cursos"
-                ).order_by("-occurred_at")
+                ).order_by("-occurred_at"))
             ),
             "filter_courses": cursos_todos,
             "ticket_groups": _ticket_groups_by_level(
@@ -763,7 +785,9 @@ def dashboard(request):
             "exam_groups": group_items_by_level(exams),
             "attempt_count": attempts.count(),
             "completed_count": attempts.filter(status=Attempt.Status.SUBMITTED).count(),
-            "incident_count": Incident.objects.filter(attempt__exam__teacher=user).count(),
+            "incident_count": _unreviewed_incidents(
+                user, Incident.objects.filter(attempt__exam__teacher=user)
+            ).count(),
             "recent_attempts": attempts.order_by("-started_at")[:8],
             "recent_incidents": Incident.objects.filter(attempt__exam__teacher=user)
             .select_related("attempt__student", "attempt__exam")[:8],

@@ -188,6 +188,7 @@ class TareaForm(forms.ModelForm):
             "parcial",
             "fecha_entrega",
             "peso_porcentual",
+            "nota_maxima",
             "archivo_adjunto",
             "activo",
         ]
@@ -196,7 +197,8 @@ class TareaForm(forms.ModelForm):
             "fecha_entrega": forms.DateTimeInput(
                 attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
             ),
-            "peso_porcentual": forms.NumberInput(attrs={"step": "0.1", "min": "0.1", "max": "100"}),
+            "peso_porcentual": forms.NumberInput(attrs={"step": "0.01", "min": "0.01", "max": "100"}),
+            "nota_maxima": forms.NumberInput(attrs={"step": "0.01", "min": "0.01", "max": "100000"}),
         }
 
     def __init__(self, *args, docente=None, **kwargs):

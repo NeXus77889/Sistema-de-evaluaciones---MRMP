@@ -12,7 +12,8 @@
       <strong>Curso:</strong> {{ tarea.curso|format_course_name }} &nbsp;|&nbsp;
       <strong>Materia:</strong> {{ tarea.materia.nombre }} &nbsp;|&nbsp;
       <strong>Fecha límite:</strong> {{ tarea.fecha_entrega|date:"d/m/Y H:i" }} &nbsp;|&nbsp;
-      <strong>Peso:</strong> {{ tarea.peso_porcentual }}%
+      <strong>Nota máxima:</strong> {{ tarea.nota_maxima }} &nbsp;|&nbsp;
+      <strong>Peso en el parcial:</strong> {{ tarea.peso_porcentual }}%
     </p>
   </div>
   <div style="display: flex; gap: 0.5rem;">
@@ -47,7 +48,7 @@
   <p style="margin: 0; color: #334155; line-height: 1.5;">{{ tarea.descripcion }}</p>
   {% if tarea.archivo_adjunto %}
     <div style="margin-top: 0.75rem;">
-      <a href="{{ tarea.archivo_adjunto.url }}" target="_blank" class="button button-small button-outline" style="display: inline-flex; align-items: center; gap: 0.4rem;">
+      <a href="{% url 'tarea-archivo-adjunto' tarea.pk %}" target="_blank" class="button button-small button-outline" style="display: inline-flex; align-items: center; gap: 0.4rem;">
         <span>Descargar Guía Adjunta</span>
       </a>
     </div>
@@ -130,7 +131,7 @@
             </td>
             <td>
               {% if item.tiene_archivo %}
-                <a href="{{ item.entrega.archivo.url }}" target="_blank" class="text-action" style="font-weight: 600; color: #2563eb;">
+                <a href="{% url 'entrega-tarea-archivo' item.entrega.pk %}" target="_blank" class="text-action" style="font-weight: 600; color: #2563eb;">
                   Ver archivo subido
                 </a>
                 {% if item.entrega.comentario %}
@@ -149,8 +150,8 @@
             </td>
             <td>
               {% if item.calificacion is not None %}
-                <strong class="{% if item.calificacion >= 7 %}grade-pass{% else %}grade-fail{% endif %}" style="font-size: 1.05rem;">
-                  {{ item.calificacion }} / 10.00
+                <strong class="{% if item.calificacion >= nota_minima_aprobacion %}grade-pass{% else %}grade-fail{% endif %}" style="font-size: 1.05rem;">
+                  {{ item.calificacion }} / {{ tarea.nota_maxima }}
                 </strong>
                 {% if item.retroalimentacion %}
                   <small style="display: block; color: #64748b;">{{ item.retroalimentacion|truncatechars:35 }}</small>
@@ -161,7 +162,7 @@
             </td>
             <td>
               {% if not es_admin and request.user.rol != 'ADMIN' and parcial_habilitado %}
-              <button type="button" class="button button-small button-outline" onclick="openGradeModal('{{ item.entrega.pk|default:'' }}', '{{ item.estudiante.pk }}', '{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}', '{{ item.calificacion|default:'' }}', '{{ item.retroalimentacion|escapejs }}')">
+              <button type="button" class="button button-small button-outline" onclick="openGradeModal('{{ item.entrega.pk|default:'' }}', '{{ item.estudiante.pk }}', '{{ item.estudiante.last_name }} {{ item.estudiante.first_name }}', '{{ item.calificacion|default:'' }}', '{{ item.retroalimentacion|escapejs }}', '{{ tarea.nota_maxima }}')">
                 {% if item.calificacion is not None %}Re-calificar{% else %}Calificar{% endif %}
               </button>
               {% else %}
@@ -183,7 +184,7 @@
 <div id="gradeModal" style="display: none; position: fixed; inset: 0; background: rgba(10,35,66,0.6); z-index: 9999; align-items: center; justify-content: center;">
   <div style="background: #ffffff; border-radius: 1rem; width: 100%; max-width: 500px; padding: 2rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1);">
     <h3 id="modalStudentName" style="color: #002855; margin-top: 0; margin-bottom: 0.5rem; font-size: 1.25rem;">Calificar Entrega</h3>
-    <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 1.5rem;">Asigna una nota sobre 10.00 y añade retroalimentación pedagógica.</p>
+    <p style="color: #64748b; font-size: 0.88rem; margin-bottom: 1.5rem;">Ingresa la nota sobre <strong>{{ tarea.nota_maxima }}</strong> puntos.</p>
 
     <form method="post">
       {% csrf_token %}
@@ -191,8 +192,8 @@
       <input type="hidden" name="calificar_estudiante_id" id="modalEstudianteId">
 
       <div style="margin-bottom: 1.25rem;">
-        <label for="modalGradeInput" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Calificación (0.00 - 10.00, vacío para borrar)</label>
-        <input type="number" step="0.01" min="0" max="10" name="calificacion" id="modalGradeInput" placeholder="Sin nota" style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 1.1rem; font-weight: 700;">
+        <label for="modalGradeInput" style="display: block; font-weight: 600; color: #1e293b; margin-bottom: 0.4rem;">Calificación (0 - {{ tarea.nota_maxima }}, vacío para borrar)</label>
+        <input type="number" step="0.01" min="0" max="{{ tarea.nota_maxima }}" name="calificacion" id="modalGradeInput" placeholder="Sin nota" style="width: 100%; padding: 0.65rem; border: 1px solid #cbd5e1; border-radius: 0.5rem; font-size: 1.1rem; font-weight: 700;">
       </div>
 
       <div style="margin-bottom: 1.5rem;">
@@ -209,11 +210,12 @@
 </div>
 
 <script>
-  function openGradeModal(entregaId, estudianteId, studentName, grade, feedback) {
+  function openGradeModal(entregaId, estudianteId, studentName, grade, feedback, maxGrade) {
     document.getElementById("modalEntregaId").value = entregaId || "";
     document.getElementById("modalEstudianteId").value = estudianteId || "";
     document.getElementById("modalStudentName").textContent = "Calificar a " + studentName;
     document.getElementById("modalGradeInput").value = grade || "";
+    document.getElementById("modalGradeInput").max = maxGrade || "10";
     document.getElementById("modalFeedbackInput").value = feedback || "";
     const modal = document.getElementById("gradeModal");
     modal.style.display = "flex";

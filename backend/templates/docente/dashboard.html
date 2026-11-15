@@ -1,8 +1,10 @@
 {% extends "base.html" %}
 {% block title %}Panel docente{% endblock %}
+{% load static %}
 {% block content %}
 <div class="page-heading"><div><span class="eyebrow">Espacio docente</span><h1>Evaluaciones</h1><p>Administra tus pruebas y revisa el avance del grupo.</p></div><a class="button button-primary" href="{% url 'exam-create' %}">Crear evaluación</a></div>
 <section class="stat-grid"><article class="stat-card"><span>Intentos recibidos</span><strong>{{ attempt_count }}</strong><small>en tus evaluaciones</small></article><article class="stat-card"><span>Finalizados</span><strong>{{ completed_count }}</strong><small>listos para revisar</small></article><article class="stat-card stat-accent"><span>Señales registradas</span><strong>{{ incident_count }}</strong><small>indicadores para revisión contextual</small></article></section>
+<div class="exam-brand-banner"><img src="{% static 'imagenes/pruebavirtual.jpeg' %}" alt="Pruebas virtuales"></div>
 <section class="data-section"><div class="section-heading"><div><span class="eyebrow">Contenido</span><h2>Tus evaluaciones</h2></div><span class="section-count">{{ exams|length }} en total</span></div>
   {% for group in exam_groups %}<details class="level-group" open><summary>{{ group.label }} <span class="section-count">{{ group.items|length }}</span></summary><div class="table-wrap"><table><thead><tr><th>Evaluación</th><th>Disponibilidad</th><th>Duración</th><th>Cursos asignados</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
   {% for exam in group.items %}<tr><td><strong>{{ exam.title }}</strong><small class="table-subtitle">{{ exam.questions.count }} preguntas</small></td><td>{{ exam.available_from|date:"d/m/Y H:i" }}</td><td>{{ exam.duration_minutes }} min</td><td>{% for course in exam.cursos.all %}{{ course.nombre }}{% if not forloop.last %}, {% endif %}{% empty %}{{ exam.curso|default:"Sin curso" }}{% endfor %}</td><td><span class="status-pill {% if exam.published %}status-live{% else %}status-draft{% endif %}">{% if exam.published %}Publicada{% else %}Borrador{% endif %}</span></td><td class="table-actions"><a class="text-action" href="{% url 'exam-edit' exam.pk %}">Editar</a><a class="text-action" href="{% url 'exam-results' exam.pk %}">Resultados</a><form method="post" action="{% url 'exam-delete' exam.pk %}" onsubmit="return confirm('¿Eliminar esta evaluación?')">{% csrf_token %}<button class="text-action text-danger" type="submit">Eliminar</button></form></td></tr>{% endfor %}
@@ -16,10 +18,22 @@
   </div>
   {% for course_group in incidence_groups %}<details class="incident-course-group" data-filter-group><summary><strong>{{ course_group.course_name }}</strong><span><b data-group-count>{{ course_group.student_count }}</b> estudiante{% if course_group.student_count != 1 %}s{% endif %} con incidencias</span></summary>
     <div class="incident-student-list">{% for student_group in course_group.students %}<details class="incident-student-group" data-filter-group><summary><strong>{{ student_group.student_name }}</strong><span><b data-group-count>{{ student_group.incidents|length }}</b> falta{% if student_group.incidents|length != 1 %}s{% endif %}</span></summary>
-      <div class="table-wrap"><table><thead><tr><th>Hora</th><th>Tipo de incidencia</th><th>Evaluación</th><th>Estado</th><th>Código de ticket</th></tr></thead><tbody>
-        {% for incident in student_group.incidents %}<tr data-filter-row data-student="{{ student_group.student_name|lower }} {{ student_group.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}"><td>{{ incident.occurred_at|date:"d/m/Y H:i:s" }}</td><td>{{ incident.get_kind_display }}</td><td>{{ incident.attempt.exam.title }}</td><td>{{ incident.get_severity_display }} · {{ incident.ticket_state }}</td><td>{{ incident.ticket_code|default:"—" }}</td></tr>{% endfor %}
+      <div class="table-wrap"><table><thead><tr><th>Hora</th><th>Tipo de incidencia</th><th>Evaluación</th><th>Estado</th><th>Código de ticket</th><th>Revisión</th></tr></thead><tbody>
+        {% for incident in student_group.incidents %}<tr class="teacher-incident-row" title="Haz clic para marcar la incidencia como revisada" data-filter-row data-student="{{ student_group.student_name|lower }} {{ student_group.student.identification }}" data-course="{{ incident.filter_course_id }}" data-date="{{ incident.filter_date }}"><td>{{ incident.occurred_at|date:"d/m/Y H:i:s" }}</td><td>{{ incident.get_kind_display }}</td><td>{{ incident.attempt.exam.title }}</td><td>{{ incident.get_severity_display }} · {{ incident.ticket_state }}</td><td>{{ incident.ticket_code|default:"—" }}</td><td><form method="post" action="{% url 'review-incident' incident.pk %}">{% csrf_token %}<button class="button button-small button-outline" type="submit">Marcar revisada</button></form></td></tr>{% endfor %}
       </tbody></table></div>
     </details>{% endfor %}</div>
   </details>{% empty %}<p class="empty-state">No hay incidencias activas que revisar.</p>{% endfor %}
 </section></div>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.querySelectorAll(".teacher-incident-row").forEach(function(row) {
+    row.style.cursor = "pointer";
+    row.addEventListener("click", function(event) {
+      if (event.target.closest("form, button, a")) return;
+      var form = row.querySelector("form");
+      if (form) form.requestSubmit();
+    });
+  });
+</script>
 {% endblock %}

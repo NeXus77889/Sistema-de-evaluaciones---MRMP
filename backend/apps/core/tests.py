@@ -13,7 +13,7 @@ from docx import Document
 from apps.evaluaciones.forms import ExamForm
 from apps.evaluaciones.academic import course_sort_key, group_items_by_level
 from apps.evaluaciones.models import AsignacionDocente, Curso, Exam, Materia, Option, Question
-from apps.intentos.models import Attempt, Incident
+from apps.intentos.models import Attempt, Incident, IncidentReview
 from apps.core.models import TicketAtencion
 from apps.usuarios.models import User
 
@@ -252,6 +252,77 @@ class AuthenticationAndAuthoringTests(TestCase):
             ),
             2,
         )
+
+    def test_teacher_review_dismisses_own_incident_and_cannot_review_other_teachers(self):
+        exam = Exam.objects.create(
+            teacher=self.teacher,
+            materia=self.materia,
+            curso=self.curso,
+            title="Evaluación por revisar",
+            duration_minutes=30,
+            available_from=timezone.now(),
+        )
+        attempt = Attempt.objects.create(exam=exam, student=self.student, started_at=timezone.now())
+        incident = Incident.objects.create(
+            attempt=attempt,
+            kind=Incident.Kind.TAB_HIDDEN,
+            description="Pestaña no visible",
+            severity=Incident.Severity.MEDIUM,
+        )
+        self.client.force_login(self.teacher)
+
+        response = self.client.post(reverse("review-incident", args=[incident.pk]))
+
+        self.assertRedirects(response, reverse("dashboard"))
+        self.assertTrue(IncidentReview.objects.filter(incident=incident, reviewer=self.teacher).exists())
+        dashboard_response = self.client.get(reverse("dashboard"))
+        self.assertNotContains(dashboard_response, incident.get_kind_display())
+        self.assertEqual(dashboard_response.context["incidence_groups"], [])
+
+        other_teacher = User.objects.create_user(
+            username="other_teacher_review",
+            email="other_teacher_review@example.com",
+            password="StrongPass!234",
+            rol=User.Role.TEACHER,
+            debe_cambiar_password=False,
+        )
+        self.client.force_login(other_teacher)
+        forbidden = self.client.post(reverse("review-incident", args=[incident.pk]))
+        self.assertEqual(forbidden.status_code, 403)
+        self.assertFalse(IncidentReview.objects.filter(incident=incident, reviewer=other_teacher).exists())
+
+    def test_admin_review_dismisses_incident_persistently(self):
+        admin_user = User.objects.create_user(
+            username="incident_admin",
+            email="incident_admin@example.com",
+            password="StrongPass!234",
+            rol=User.Role.ADMINISTRATOR,
+            is_staff=True,
+            debe_cambiar_password=False,
+        )
+        exam = Exam.objects.create(
+            teacher=self.teacher,
+            materia=self.materia,
+            curso=self.curso,
+            title="Evaluación auditoría",
+            duration_minutes=30,
+            available_from=timezone.now(),
+        )
+        attempt = Attempt.objects.create(exam=exam, student=self.student, started_at=timezone.now())
+        incident = Incident.objects.create(
+            attempt=attempt,
+            kind=Incident.Kind.FULLSCREEN_EXIT,
+            description="Salida de pantalla completa",
+            severity=Incident.Severity.MEDIUM,
+        )
+        self.client.force_login(admin_user)
+
+        response = self.client.post(reverse("review-incident", args=[incident.pk]))
+
+        self.assertRedirects(response, reverse("dashboard"))
+        dashboard_response = self.client.get(reverse("dashboard"))
+        self.assertNotContains(dashboard_response, incident.get_kind_display())
+        self.assertEqual(dashboard_response.context["recent_incidents"].count(), 0)
 
     def test_temporary_password_requires_change_before_dashboard(self):
         self.student.debe_cambiar_password = True

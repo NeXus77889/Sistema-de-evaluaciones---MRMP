@@ -4,6 +4,7 @@ from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.db.models import Q
 from django.utils import timezone
+from decimal import Decimal, ROUND_HALF_UP
 
 
 class Materia(models.Model):
@@ -221,6 +222,13 @@ class Tarea(models.Model):
         validators=[MinValueValidator(0.01), MaxValueValidator(100.00)],
         help_text="Peso porcentual de la tarea (0.01 - 100.00%)",
     )
+    nota_maxima = models.DecimalField(
+        max_digits=8,
+        decimal_places=2,
+        default=Decimal("10.00"),
+        validators=[MinValueValidator(Decimal("0.01")), MaxValueValidator(Decimal("100000.00"))],
+        help_text="Puntaje máximo posible en esta tarea.",
+    )
     archivo_adjunto = models.FileField(
         upload_to="tareas/adjuntos/%Y/%m/",
         blank=True,
@@ -291,6 +299,20 @@ class Tarea(models.Model):
                 updated = True
             if updated:
                 insumo.save()
+        for entrega in self.entregas.filter(calificacion__isnull=False).only("pk", "estudiante_id", "calificacion"):
+            nota_sobre_diez = (entrega.calificacion * Decimal("10") / self.nota_maxima).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            registro, created = RegistroCalificacion.objects.get_or_create(
+                insumo=insumo,
+                estudiante_id=entrega.estudiante_id,
+                defaults={"nota": nota_sobre_diez},
+            )
+            if not created and registro.nota != nota_sobre_diez:
+                RegistroCalificacion.objects.filter(pk=registro.pk).update(
+                    nota=nota_sobre_diez,
+                    fecha_registro=timezone.now(),
+                )
         return insumo
 
     def save(self, *args, **kwargs):
@@ -332,11 +354,11 @@ class EntregaTarea(models.Model):
         default=ESTADO_PENDIENTE,
     )
     calificacion = models.DecimalField(
-        max_digits=4,
+        max_digits=8,
         decimal_places=2,
         null=True,
         blank=True,
-        validators=[MinValueValidator(0.00), MaxValueValidator(10.00)],
+        validators=[MinValueValidator(0.00)],
     )
     retroalimentacion = models.TextField(blank=True)
     fecha_calificacion = models.DateTimeField(null=True, blank=True)
@@ -353,6 +375,8 @@ class EntregaTarea(models.Model):
                 raise ValidationError("El estudiante no pertenece al curso de esta tarea.")
 
     def save(self, *args, **kwargs):
+        if self.calificacion is not None and self.calificacion > self.tarea.nota_maxima:
+            raise ValidationError({"calificacion": f"La nota no puede superar {self.tarea.nota_maxima}."})
         if self.archivo:
             now = timezone.now()
             if self.tarea.fecha_entrega and now > self.tarea.fecha_entrega:
@@ -370,10 +394,13 @@ class EntregaTarea(models.Model):
         if self.tarea_id and self.estudiante_id:
             insumo = self.tarea.asegurar_insumo()
             if self.calificacion is not None:
+                nota_sobre_diez = (self.calificacion * Decimal("10") / self.tarea.nota_maxima).quantize(
+                    Decimal("0.01"), rounding=ROUND_HALF_UP
+                )
                 RegistroCalificacion.objects.update_or_create(
                     insumo=insumo,
                     estudiante=self.estudiante,
-                    defaults={"nota": self.calificacion},
+                    defaults={"nota": nota_sobre_diez},
                 )
             else:
                 RegistroCalificacion.objects.filter(
@@ -518,15 +545,20 @@ class RegistroCalificacion(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
         if self.insumo_id and self.insumo.tarea_id:
+            task = self.insumo.tarea
+            task_grade = (self.nota * task.nota_maxima / Decimal("10")).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
             entrega, created = EntregaTarea.objects.get_or_create(
                 tarea_id=self.insumo.tarea_id,
                 estudiante=self.estudiante,
-                defaults={"calificacion": self.nota},
+                defaults={"calificacion": task_grade},
             )
-            if not created and entrega.calificacion != self.nota:
-                entrega.calificacion = self.nota
-                entrega.fecha_calificacion = timezone.now()
-                entrega.save(update_fields=["calificacion", "fecha_calificacion"])
+            if not created and entrega.calificacion != task_grade:
+                EntregaTarea.objects.filter(pk=entrega.pk).update(
+                    calificacion=task_grade,
+                    fecha_calificacion=timezone.now(),
+                )
 
     def delete(self, *args, **kwargs):
         tarea_id = self.insumo.tarea_id if self.insumo_id else None
