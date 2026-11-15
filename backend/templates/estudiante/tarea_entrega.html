@@ -67,9 +67,11 @@
       {% if entrega and entrega.archivo %}
         <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 0.5rem; padding: 1rem; margin-bottom: 1.5rem;">
           <span style="font-size: 0.8rem; font-weight: 700; color: #1e40af; text-transform: uppercase; display: block; margin-bottom: 0.25rem;">Archivo Actualmente Entregado:</span>
-          <a href="{% url 'entrega-tarea-archivo' entrega.pk %}" target="_blank" style="color: #2563eb; font-weight: 600; word-break: break-all;">
-            {{ entrega.archivo.name|cut:"tareas/entregas/" }}
-          </a>
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem;">
+            <span style="color: #1e293b; font-weight: 600; word-break: break-all;">{{ entrega.archivo.name|cut:"tareas/entregas/" }}</span>
+            <a href="{% url 'entrega-tarea-archivo' entrega.pk %}" target="_blank" rel="noopener" class="button button-small button-outline">Vista previa</a>
+            <a href="{% url 'entrega-tarea-archivo' entrega.pk %}?descargar=1" class="button button-small button-primary">Descargar archivo</a>
+          </div>
           <small style="display: block; color: #64748b; margin-top: 0.35rem;">Subido el {{ entrega.fecha_subida|date:"d/m/Y H:i" }}</small>
         </div>
       {% endif %}

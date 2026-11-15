@@ -52,13 +52,14 @@ def _serve_task_file(request, tarea, archivo):
     name = archivo.name.rsplit("/", 1)[-1]
     content_type, _ = mimetypes.guess_type(name)
     inline = content_type == "application/pdf" or bool(content_type and content_type.startswith("image/"))
+    force_download = request.GET.get("descargar", "").lower() in {"1", "true", "si", "sí"}
     try:
         file_handle = archivo.open("rb")
     except (FileNotFoundError, OSError, ValueError):
         raise Http404("El archivo ya no está disponible en el almacenamiento.")
     response = FileResponse(
         file_handle,
-        as_attachment=not inline,
+        as_attachment=not inline or force_download,
         filename=name,
         content_type=content_type or "application/octet-stream",
     )
