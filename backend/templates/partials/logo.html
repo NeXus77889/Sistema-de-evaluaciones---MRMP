@@ -1,0 +1,6 @@
+{% load static %}
+<img src="{% static 'imagenes/logo.png' %}"
+     alt="{{ alt_text|default:'UEPMRMP' }}"
+     class="{{ css_class|default:'' }}"
+     style="object-fit: contain;"
+     loading="lazy">

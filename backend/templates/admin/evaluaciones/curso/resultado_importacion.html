@@ -1,0 +1,103 @@
+{% extends "admin/base_site.html" %}
+
+{% block extrastyle %}
+  {{ block.super }}
+  <style>
+    .report-controls, .report-actions { display: flex; gap: 12px; align-items: end; margin: 16px 0; }
+    .report-controls label { display: grid; gap: 4px; }
+    #credential-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
+    #credential-table th, #credential-table td { border: 1px solid var(--hairline-color, #ccc); padding: 8px; text-align: left; overflow-wrap: anywhere; }
+    #credential-table th { background: var(--darkened-bg, #f3f3f3); }
+    #credential-table td:first-child, #credential-table th:first-child { text-align: center; }
+    #credential-table th:nth-child(1), #credential-table td:nth-child(1) { width: 5%; }
+    #credential-table th:nth-child(2), #credential-table td:nth-child(2) { width: 15%; }
+    #credential-table th:nth-child(3), #credential-table td:nth-child(3) { width: 30%; }
+    #credential-table th:nth-child(4), #credential-table td:nth-child(4) { width: 12%; }
+    #credential-table th:nth-child(5), #credential-table td:nth-child(5) { width: 18%; }
+    #credential-table th:nth-child(6), #credential-table td:nth-child(6) { width: 20%; }
+    @media print {
+      @page { size: landscape; margin: 1cm; }
+      body * { visibility: hidden !important; }
+      #credential-report, #credential-report * { visibility: visible !important; }
+      #credential-report { position: absolute; inset: 0; width: 100%; margin: 0; }
+      #credential-report > h1 { display: none; }
+      .report-controls, .report-actions { display: none !important; }
+      #credential-table { font-size: 9pt; }
+      #credential-table th, #credential-table td { padding: 8px; }
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <main id="credential-report">
+    <h1>{{ title }}</h1>
+    <div class="report-controls">
+      <label for="credential-search">Buscar
+        <input id="credential-search" type="search" autocomplete="off">
+      </label>
+      <label for="course-filter">Curso / Especialidad
+        <select id="course-filter">
+          <option value="">Todos</option>
+          {% for course in courses %}<option value="{{ course }}">{{ course }}</option>{% endfor %}
+        </select>
+      </label>
+    </div>
+    <div class="report-actions">
+      <a class="button" href="{% url 'admin:evaluaciones_curso_descargar_reporte_csv' report_id=report_id %}">Descargar reporte (.csv)</a>
+      <button type="button" class="button" onclick="window.print()">Imprimir / PDF</button>
+      <a class="button" href="{% url 'admin:evaluaciones_curso_changelist' %}">Volver a cursos</a>
+    </div>
+    <table id="credential-table">
+      <colgroup>
+        <col style="width: 5%">
+        <col style="width: 15%">
+        <col style="width: 30%">
+        <col style="width: 12%">
+        <col style="width: 18%">
+        <col style="width: 20%">
+      </colgroup>
+      <thead>
+        <tr>
+          <th>Nº</th>
+          <th>Cédula / Usuario</th>
+          <th>Apellidos y Nombres</th>
+          <th>Rol</th>
+          <th>Curso y Paralelo</th>
+          <th>Clave Temporal</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr data-course="{{ row.curso }}">
+            <td>{{ forloop.counter }}</td>
+            <td>{{ row.identificacion }}</td>
+            <td>{{ row.apellidos }} {{ row.nombres }}</td>
+            <td>{{ row.rol }}</td>
+            <td>{{ row.curso }}</td>
+            <td>{{ row.clave_temporal }}</td>
+          </tr>
+        {% empty %}
+          <tr><td colspan="6">No hay credenciales para mostrar.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </main>
+  <script>
+    (() => {
+      const search = document.getElementById("credential-search");
+      const courseFilter = document.getElementById("course-filter");
+      const rows = [...document.querySelectorAll("#credential-table tbody tr[data-course]")];
+      const applyFilters = () => {
+        const query = search.value.trim().toLocaleLowerCase();
+        const course = courseFilter.value;
+        for (const row of rows) {
+          const matchesText = row.textContent.toLocaleLowerCase().includes(query);
+          const matchesCourse = !course || row.dataset.course === course;
+          row.hidden = !(matchesText && matchesCourse);
+        }
+      };
+      search.addEventListener("input", applyFilters);
+      courseFilter.addEventListener("change", applyFilters);
+    })();
+  </script>
+{% endblock %}

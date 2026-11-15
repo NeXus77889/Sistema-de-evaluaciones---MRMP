@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}Bandeja de Entrada — Mensajería Institucional{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Comunicación Interna</span>
+    <h1>Bandeja de Entrada</h1>
+    <p>Mensajes y comunicados institucionales recibidos.</p>
+  </div>
+  <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <a class="button button-outline" href="{% url 'mensajeria:sent' %}">Mensajes enviados</a>
+    <a class="button button-primary" href="{% url 'mensajeria:compose' %}">+ Redactar mensaje</a>
+  </div>
+</div>
+
+<!-- Barra de búsqueda y filtros -->
+<section class="data-section" style="margin-bottom: 1.5rem;">
+  <form method="get" class="filter-panel" style="padding: 1rem 1.25rem;">
+    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+      <label style="flex: 2; min-width: 240px;">
+        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">Buscar por asunto, remitente o contenido</span>
+        <input type="text" name="q" value="{{ q }}" placeholder="Escribe para buscar..." style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5e1;">
+      </label>
+
+      <label style="flex: 1; min-width: 180px;">
+        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">Estado</span>
+        <select name="estado" onchange="this.form.submit()" style="width: 100%; padding: 0.5rem; border-radius: 0.5rem; border: 1px solid #cbd5e1;">
+          <option value="">Todos los mensajes</option>
+          <option value="no_leido" {% if estado_filtro == 'no_leido' %}selected{% endif %}>Solo no leídos</option>
+          <option value="leido" {% if estado_filtro == 'leido' %}selected{% endif %}>Solo leídos</option>
+        </select>
+      </label>
+
+      <button type="submit" class="button button-secondary" style="height: 38px;">Buscar</button>
+      {% if q or estado_filtro %}
+        <a href="{% url 'mensajeria:inbox' %}" class="button button-outline" style="height: 38px; display: inline-flex; align-items: center;">Limpiar</a>
+      {% endif %}
+    </div>
+  </form>
+</section>
+
+<!-- Tabla de mensajes -->
+<section class="data-section">
+  <div class="table-wrap">
+    <table class="data-table" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th style="width: 40px; text-align: center;"></th>
+          <th>Remitente</th>
+          <th>Asunto / Motivo</th>
+          <th>Tipo</th>
+          <th>Fecha</th>
+          <th style="text-align: right;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for lectura in page_obj %}
+          <tr style="{% if not lectura.leido %}background-color: #f0fdf4; font-weight: 600;{% endif %}">
+            <td style="text-align: center;">
+              {% if not lectura.leido %}
+                <span title="No leído" style="display: inline-block; width: 10px; height: 10px; background: #2563eb; border-radius: 50%;"></span>
+              {% endif %}
+            </td>
+            <td>
+              <div>{{ lectura.mensaje.remitente.get_full_name|default:lectura.mensaje.remitente.username }}</div>
+              <small style="color: #64748b; font-size: 0.78rem;">{{ lectura.mensaje.remitente.get_rol_display }}</small>
+            </td>
+            <td>
+              <a href="{% url 'mensajeria:detail' lectura.mensaje.pk %}" style="color: #1e293b; text-decoration: none; display: inline-block;">
+                {{ lectura.mensaje.motivo }}
+              </a>
+              {% if lectura.mensaje.adjunto %}
+                <span title="Contiene archivo adjunto" style="margin-left: 6px; font-size: 0.85rem;">📎</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if lectura.mensaje.tipo_destino == 'CURSO' %}
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; background: #e0f2fe; color: #0369a1;">
+                  Curso: {{ lectura.mensaje.curso.nombre }}
+                </span>
+              {% else %}
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; background: #f1f5f9; color: #475569;">
+                  Directo
+                </span>
+              {% endif %}
+            </td>
+            <td style="white-space: nowrap; color: #64748b; font-size: 0.85rem;">
+              {{ lectura.mensaje.fecha|date:"d/m/Y H:i" }}
+            </td>
+            <td style="text-align: right;">
+              <a href="{% url 'mensajeria:detail' lectura.mensaje.pk %}" class="button button-outline button-small">Ver mensaje</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="6" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;">
+              <p style="margin: 0; font-size: 1.05rem;">No tienes mensajes en tu bandeja de entrada.</p>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Paginación -->
+  {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem; align-items: center;">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}" class="button button-outline button-small">Anterior</a>
+      {% endif %}
+      <span style="font-size: 0.85rem; color: #64748b;">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}" class="button button-outline button-small">Siguiente</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+

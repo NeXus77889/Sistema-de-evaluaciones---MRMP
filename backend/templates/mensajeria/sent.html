@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Mensajes Enviados — Mensajería Institucional{% endblock %}
+
+{% block content %}
+<div class="page-heading">
+  <div>
+    <span class="eyebrow">Comunicación Interna</span>
+    <h1>Mensajes Enviados</h1>
+    <p>Historial de mensajes y comunicados remitidos por tu usuario.</p>
+  </div>
+  <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+    <a class="button button-outline" href="{% url 'mensajeria:inbox' %}">Bandeja de entrada</a>
+    <a class="button button-primary" href="{% url 'mensajeria:compose' %}">+ Redactar mensaje</a>
+  </div>
+</div>
+
+<!-- Filtros -->
+<section class="data-section" style="margin-bottom: 1.5rem;">
+  <form method="get" class="filter-panel" style="padding: 1rem 1.25rem;">
+    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+      <label style="flex: 2; min-width: 240px;">
+        <span style="font-size: 0.82rem; font-weight: 600; color: #475569;">Buscar en enviados</span>
+        <input type="text" name="q" value="{{ q }}" placeholder="Buscar por asunto, destinatario..." style="width: 100%; padding: 0.5rem 0.75rem; border-radius: 0.5rem; border: 1px solid #cbd5e1;">
+      </label>
+      <button type="submit" class="button button-secondary" style="height: 38px;">Buscar</button>
+      {% if q %}
+        <a href="{% url 'mensajeria:sent' %}" class="button button-outline" style="height: 38px; display: inline-flex; align-items: center;">Limpiar</a>
+      {% endif %}
+    </div>
+  </form>
+</section>
+
+<!-- Tabla de enviados -->
+<section class="data-section">
+  <div class="table-wrap">
+    <table class="data-table" style="width: 100%; border-collapse: collapse;">
+      <thead>
+        <tr>
+          <th>Destino</th>
+          <th>Asunto / Motivo</th>
+          <th>Tipo</th>
+          <th>Fecha</th>
+          <th style="text-align: right;">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for msg in page_obj %}
+          <tr>
+            <td>
+              {% if msg.tipo_destino == 'CURSO' %}
+                <strong>Curso: {{ msg.curso.nombre }}</strong>
+              {% else %}
+                <strong>{{ msg.destinatario.get_full_name|default:msg.destinatario.username }}</strong>
+                <small style="display: block; color: #64748b; font-size: 0.78rem;">{{ msg.destinatario.get_rol_display }}</small>
+              {% endif %}
+            </td>
+            <td>
+              <a href="{% url 'mensajeria:detail' msg.pk %}" style="color: #1e293b; text-decoration: none;">
+                {{ msg.motivo }}
+              </a>
+              {% if msg.adjunto %}
+                <span title="Contiene archivo adjunto" style="margin-left: 6px; font-size: 0.85rem;">📎</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if msg.tipo_destino == 'CURSO' %}
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; background: #e0f2fe; color: #0369a1;">
+                  Curso completo
+                </span>
+              {% else %}
+                <span style="display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; background: #f1f5f9; color: #475569;">
+                  Individual
+                </span>
+              {% endif %}
+            </td>
+            <td style="white-space: nowrap; color: #64748b; font-size: 0.85rem;">
+              {{ msg.fecha|date:"d/m/Y H:i" }}
+            </td>
+            <td style="text-align: right;">
+              <a href="{% url 'mensajeria:detail' msg.pk %}" class="button button-outline button-small">Ver detalle</a>
+            </td>
+          </tr>
+        {% empty %}
+          <tr>
+            <td colspan="5" style="text-align: center; padding: 2.5rem 1rem; color: #64748b;">
+              <p style="margin: 0; font-size: 1.05rem;">No has enviado ningún mensaje todavía.</p>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page_obj.has_other_pages %}
+    <div style="display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.5rem; align-items: center;">
+      {% if page_obj.has_previous %}
+        <a href="?page={{ page_obj.previous_page_number }}{% if q %}&q={{ q }}{% endif %}" class="button button-outline button-small">Anterior</a>
+      {% endif %}
+      <span style="font-size: 0.85rem; color: #64748b;">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?page={{ page_obj.next_page_number }}{% if q %}&q={{ q }}{% endif %}" class="button button-outline button-small">Siguiente</a>
+      {% endif %}
+    </div>
+  {% endif %}
+</section>
+{% endblock %}
+
