@@ -1,4 +1,4 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import mimetypes
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -18,10 +18,7 @@ from apps.evaluaciones.forms import (
 )
 from apps.evaluaciones.grading_config import (
     PESO_ACTIVIDADES_TRIMESTRE,
-    PESO_EVALUACION_PARCIAL,
     PESO_EXAMEN_FINAL,
-    PESO_INSUMO_1,
-    PESO_INSUMO_2,
     PESO_TRIMESTRE_1,
     PESO_TRIMESTRE_2,
     PESO_TRIMESTRE_3,
@@ -553,6 +550,19 @@ def docente_calificaciones_matrix(request):
             suma_pesos = Decimal("0.00")
             for ins in insumos_parcial:
                 nota = regs.get(ins.pk)
+                # La entrega es la fuente original de las tareas. Si falta su
+                # registro asociado (por datos antiguos o una sincronización
+                # incompleta), mostrarla en la sábana y contarla en el promedio.
+                if nota is None and ins.tarea_id:
+                    nota_tarea = EntregaTarea.objects.filter(
+                        tarea_id=ins.tarea_id,
+                        estudiante=estudiante,
+                        calificacion__isnull=False,
+                    ).values_list("calificacion", flat=True).first()
+                    if nota_tarea is not None:
+                        nota = (nota_tarea * Decimal("10") / ins.tarea.nota_maxima).quantize(
+                            Decimal("0.01"), rounding=ROUND_HALF_UP
+                        )
                 if nota is not None:
                     suma_ponderada += nota * ins.ponderacion
                     suma_pesos += ins.ponderacion
@@ -626,6 +636,25 @@ def docente_calificaciones_matrix(request):
                 redirect_url += f"&scroll_pos={scroll_pos}"
             return redirect(redirect_url)
 
+        elif action == "delete_insumo":
+            insumo = get_object_or_404(
+                InsumoCalificacion,
+                pk=request.POST.get("insumo_id"),
+                curso=selected_curso,
+                materia=selected_materia,
+                trimestre=selected_trimestre,
+                parcial=selected_parcial,
+            )
+            if insumo.tipo == InsumoCalificacion.TIPO_EXAMEN_FINAL:
+                messages.error(request, "El Examen Final institucional no se puede eliminar desde esta sábana.")
+            else:
+                nombre_insumo = insumo.nombre
+                insumo.delete()
+                messages.success(request, f"Se eliminó el insumo «{nombre_insumo}» y sus calificaciones registradas.")
+            return redirect(
+                f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
+            )
+
         elif action == "create_insumo":
             nombre_ins = request.POST.get("nombre", "").strip()
             tipo_ins = request.POST.get("tipo", InsumoCalificacion.TIPO_INSUMO_1)
@@ -696,44 +725,6 @@ def docente_calificaciones_matrix(request):
             else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
         )
 
-        # Si no existen insumos en este parcial, crear la estructura inicial predeterminada
-        if not insumos_parcial:
-            with transaction.atomic():
-                i1 = InsumoCalificacion.objects.create(
-                    curso=selected_curso,
-                    materia=selected_materia,
-                    docente=docente_asignado,
-                    nombre="Insumo 1 (Tareas / Actividades individuales)",
-                    tipo=InsumoCalificacion.TIPO_INSUMO_1,
-                    trimestre=selected_trimestre,
-                    parcial=selected_parcial,
-                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
-                    ponderacion=PESO_INSUMO_1,
-                )
-                i2 = InsumoCalificacion.objects.create(
-                    curso=selected_curso,
-                    materia=selected_materia,
-                    docente=docente_asignado,
-                    nombre="Insumo 2 (Lecciones / Proyectos grupales)",
-                    tipo=InsumoCalificacion.TIPO_INSUMO_2,
-                    trimestre=selected_trimestre,
-                    parcial=selected_parcial,
-                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
-                    ponderacion=PESO_INSUMO_2,
-                )
-                ie = InsumoCalificacion.objects.create(
-                    curso=selected_curso,
-                    materia=selected_materia,
-                    docente=docente_asignado,
-                    nombre="Evaluación del Parcial",
-                    tipo=InsumoCalificacion.TIPO_EVALUACION,
-                    trimestre=selected_trimestre,
-                    parcial=selected_parcial,
-                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
-                    ponderacion=PESO_EVALUACION_PARCIAL,
-                )
-                insumos_parcial = [i1, i2, ie]
-
         # Asegurar existencia del Examen Final si no existe
         if not insumo_examen_final:
             insumo_examen_final = InsumoCalificacion.objects.create(
@@ -764,6 +755,26 @@ def docente_calificaciones_matrix(request):
             )
         }
 
+        # Repara notas de tareas antiguas que se guardaron antes de que la
+        # sincronización con la sábana estuviera activa. Así quedan persistidas
+        # en el mismo registro usado por promedios y boletines.
+        task_insumo_map = {ins.tarea_id: ins for ins in insumos_parcial if ins.tarea_id}
+        for (tarea_id, estudiante_id), nota_tarea in entrega_grade_map.items():
+            insumo_tarea = task_insumo_map.get(tarea_id)
+            if insumo_tarea is None or nota_tarea is None:
+                continue
+            nota_sobre_diez = (nota_tarea * Decimal("10") / insumo_tarea.tarea.nota_maxima).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            registro_key = (insumo_tarea.pk, estudiante_id)
+            if reg_map.get(registro_key) != nota_sobre_diez:
+                RegistroCalificacion.objects.update_or_create(
+                    insumo=insumo_tarea,
+                    estudiante_id=estudiante_id,
+                    defaults={"nota": nota_sobre_diez},
+                )
+                reg_map[registro_key] = nota_sobre_diez
+
         estudiantes = selected_curso.estudiantes.filter(is_active=True).order_by("last_name", "first_name")
 
         for est in estudiantes:
@@ -773,10 +784,15 @@ def docente_calificaciones_matrix(request):
 
             for ins in insumos_parcial:
                 nota = reg_map.get((ins.pk, est.pk))
+                nota_tarea = entrega_grade_map.get((ins.tarea_id, est.pk)) if ins.tarea_id else None
+                if nota is None and nota_tarea is not None:
+                    nota = (nota_tarea * Decimal("10") / ins.tarea.nota_maxima).quantize(
+                        Decimal("0.01"), rounding=ROUND_HALF_UP
+                    )
                 notas_insumos.append({
                     "insumo": ins,
                     "nota": nota,
-                    "nota_tarea": entrega_grade_map.get((ins.tarea_id, est.pk)) if ins.tarea_id else None,
+                    "nota_tarea": nota_tarea,
                 })
                 if nota is not None:
                     suma_ponderada += nota * ins.ponderacion

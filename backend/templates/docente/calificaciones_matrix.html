@@ -35,8 +35,8 @@
   }
 
   .cal-btn-publish {
-    background: var(--cal-ok);
-    border-color: var(--cal-ok);
+    background: var(--cal-primary);
+    border-color: var(--cal-primary);
   }
 
   .cal-btn-draft {
@@ -53,7 +53,9 @@
 
   .cal-filters {
     margin-bottom: 1.5rem;
-    padding: 1.25rem;
+    padding: 1.25rem 1.35rem 1.4rem;
+    box-shadow: 0 8px 25px rgba(0, 40, 85, .055);
+    border-top: 3px solid var(--cal-accent);
   }
 
   .cal-filters form {
@@ -93,7 +95,10 @@
     color: #1e293b;
     background: var(--cal-surface);
     box-sizing: border-box;
+    transition: border-color .16s ease, box-shadow .16s ease;
   }
+
+  .cal-select:focus, .cal-field:focus { outline: none; border-color: var(--cal-accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, .13); }
 
   .cal-status {
     margin-bottom: 1rem;
@@ -110,9 +115,9 @@
   }
 
   .cal-status.is-published {
-    background: var(--cal-ok-bg);
-    border-left-color: #10b981;
-    color: #065f46;
+    background: #eff6ff;
+    border-left-color: var(--cal-accent);
+    color: #1e40af;
   }
 
   .cal-status small {
@@ -141,6 +146,68 @@
     font-size: 1.25rem;
   }
 
+  .cal-overview {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: .85rem;
+    margin: 0 0 1.15rem;
+  }
+
+  .cal-overview-card {
+    position: relative;
+    overflow: hidden;
+    min-height: 92px;
+    padding: 1.05rem 1.2rem 1rem 1.35rem;
+    border: 1px solid var(--cal-border);
+    border-radius: .8rem;
+    background: linear-gradient(135deg, #fff 0%, #f3f7ff 100%);
+    box-shadow: 0 5px 18px rgba(0, 40, 85, .055);
+  }
+
+  .cal-overview-card::after {
+    content: "";
+    position: absolute;
+    width: 5px;
+    inset: 0 auto 0 0;
+    background: var(--cal-accent);
+  }
+
+  .cal-overview-card.is-gold::after { background: var(--cal-final); }
+  .cal-overview-card.is-navy::after { background: var(--cal-primary); }
+  .cal-overview-card span { display: block; color: var(--cal-muted); font-size: .76rem; font-weight: 700; text-transform: uppercase; letter-spacing: .055em; }
+  .cal-overview-card strong { display: block; margin-top: .22rem; color: var(--cal-primary); font-size: 1.15rem; }
+
+  .cal-table tbody tr { transition: background-color .16s ease; }
+  .cal-table tbody tr:nth-child(even) { background: #f8faff; }
+  .cal-table tbody tr:hover { background: #edf4ff; }
+  .cal-table thead th { position: sticky; top: 0; z-index: 2; }
+  .cal-th-num, .cal-td-num { position: sticky; left: 0; z-index: 3; min-width: 40px; }
+  .cal-th-student, .cal-td-student { position: sticky; left: 40px; z-index: 2; }
+  .cal-th-num, .cal-th-student { z-index: 4; }
+  .cal-td-num { background: #fff; }
+  .cal-table tbody tr:nth-child(even) .cal-td-num { background: #f8faff; }
+  .cal-table tbody tr:hover .cal-td-num { background: #edf4ff; }
+  .cal-td-student { background: #fff; box-shadow: 5px 0 8px -8px rgba(0, 40, 85, .45); }
+  .cal-table tbody tr:nth-child(even) .cal-td-student { background: #f8faff; }
+  .cal-table tbody tr:hover .cal-td-student { background: #edf4ff; }
+
+  .cal-table-toolbar { display: flex; width: 100%; min-width: 0; justify-content: space-between; align-items: center; gap: .75rem; padding: .7rem 1.15rem; border-bottom: 1px solid var(--cal-border); background: linear-gradient(90deg, #f8fbff, #fff); }
+  .cal-table-toolbar strong { color: var(--cal-primary); font-size: .86rem; }
+  .cal-table-toolbar span { color: var(--cal-muted); font-size: .8rem; }
+  .cal-table-wrap { scrollbar-width: thin; scrollbar-color: #94a3b8 #eaf0f8; }
+  .cal-table-wrap::-webkit-scrollbar { height: 10px; }
+  .cal-table-wrap::-webkit-scrollbar-track { background: #eaf0f8; }
+  .cal-table-wrap::-webkit-scrollbar-thumb { border: 2px solid #eaf0f8; border-radius: 99px; background: #94a3b8; }
+  .cal-sheet-head { background: linear-gradient(115deg, #fff 0%, #f7faff 100%); }
+  .cal-sheet-head .eyebrow { display: inline-block; margin-bottom: .3rem; color: var(--cal-accent); font-weight: 800; }
+  .cal-th-num { background: #0b2441; color: #dbeafe; }
+  .cal-th-student { background: #0b2441; color: #fff; }
+  .cal-th-insumo { border-top: 3px solid #bfdbfe; }
+  .cal-th-prom { border-top: 3px solid #2563eb; }
+  .cal-th-final { border-top: 3px solid var(--cal-final); }
+  .cal-task-grade-source { display: block; margin: .28rem auto 0; color: var(--cal-muted); font-size: .68rem; }
+  .cal-sheet-foot { background: linear-gradient(90deg, #f8fafc, #eef5ff); }
+
   .cal-save-state {
     font-size: .85rem;
     font-weight: 600;
@@ -168,7 +235,8 @@
 
   .cal-table {
     width: 100%;
-    border-collapse: collapse;
+    border-collapse: separate;
+    border-spacing: 0;
     min-width: 860px;
   }
 
@@ -184,6 +252,7 @@
   .cal-table th,
   .cal-table td {
     padding: .65rem .75rem;
+    border-bottom: 1px solid #e2e8f0;
   }
 
   .cal-th-num {
@@ -228,6 +297,9 @@
     font-size: .7rem;
     font-weight: 700;
   }
+
+  .cal-delete-insumo { display: inline-flex; margin-top: .4rem; padding: .25rem .5rem; border: 1px solid #fecaca; border-radius: .4rem; color: #b91c1c; background: #fff7f7; font-size: .68rem; font-weight: 700; cursor: pointer; }
+  .cal-delete-insumo:hover { border-color: #ef4444; background: #fef2f2; }
 
   .cal-th-prom {
     text-align: center;
@@ -425,6 +497,9 @@
   }
 
   @media (max-width: 720px) {
+    .cal-overview { grid-template-columns: 1fr; }
+    .cal-th-student, .cal-td-student { left: 0; }
+    .cal-table-toolbar { align-items: flex-start; flex-direction: column; }
 
     .cal-sheet-head,
     .cal-sheet-foot {
@@ -467,6 +542,10 @@
     .cal-form-split>div {
       margin-bottom: 1.2rem;
     }
+  }
+
+  @media (min-width: 721px) and (max-width: 1020px) {
+    .cal-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>
 
@@ -548,6 +627,24 @@
   </section>
 
   {% if selected_curso and selected_materia %}
+  <section class="cal-overview" aria-label="Resumen de la sábana">
+    <article class="cal-overview-card">
+      <span>Curso seleccionado</span>
+      <strong>{{ selected_curso|format_course_name }}</strong>
+    </article>
+    <article class="cal-overview-card">
+      <span>Estudiantes</span>
+      <strong>{{ matriz_estudiantes|length }}</strong>
+    </article>
+    <article class="cal-overview-card is-gold">
+      <span>Insumos del parcial</span>
+      <strong>{{ insumos|length }}</strong>
+    </article>
+    <article class="cal-overview-card is-navy">
+      <span>Periodo académico</span>
+      <strong>Trimestre {{ selected_trimestre }} · Parcial {{ selected_parcial }}</strong>
+    </article>
+  </section>
   {% if es_admin %}
   <div class="cal-status" style="background: #eff6ff; border-left: 4px solid #2563eb; color: #1e40af;">
     <div>
@@ -600,6 +697,10 @@
       </div>
 
       <div class="cal-table-wrap">
+        <div class="cal-table-toolbar">
+          <strong>Registro individual por estudiante</strong>
+          <span>Las notas se califican sobre 10 · Desplázate horizontalmente para ver todos los insumos</span>
+        </div>
         <table class="cal-table">
           <thead>
             <tr>
@@ -611,6 +712,9 @@
                 <small>Peso: {{ ins.ponderacion }}%</small>
                 {% if ins.tarea_id %}<small>Equivalencia: nota sobre {{ ins.tarea.nota_maxima }} → escala /10</small>{% endif %}
                 {% if ins.tarea_id %}<span class="cal-tag-tarea">Tarea</span>{% endif %}
+                {% if not es_admin and parcial_habilitado %}
+                <button type="submit" form="deleteInsumoForm" name="insumo_id" value="{{ ins.pk }}" class="cal-delete-insumo" onclick="return confirm('¿Eliminar este insumo y todas sus calificaciones? Esta acción no se puede deshacer.');">Eliminar insumo</button>
+                {% endif %}
               </th>
               {% endfor %}
               <th class="cal-th-prom">Promedio Parcial {{ selected_parcial }}</th>
@@ -679,11 +783,16 @@
       {% endif %}
     </form>
   </section>
+  {% if not es_admin and parcial_habilitado %}
+  <form id="deleteInsumoForm" method="post" hidden>
+    {% csrf_token %}
+    <input type="hidden" name="action" value="delete_insumo">
+  </form>
+  {% endif %}
   {% else %}
   <div class="cal-empty">
     <h3>Por favor, selecciona un Curso y una Materia arriba</h3>
-    <p>Para desplegar la sábana de calificaciones institucional y gestionar los insumos de tus alumnos por trimestre y
-      parcial.</p>
+    <p>Para desplegar la sábana de calificaciones institucional y gestionar los insumos de tus alumnos por trimestre y parcial.</p>
   </div>
   {% endif %}
 

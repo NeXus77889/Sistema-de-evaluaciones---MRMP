@@ -258,10 +258,12 @@ class Tarea(models.Model):
                         "El docente no tiene asignación activa para dictar esta materia en este curso."
                     )
 
-    def asegurar_insumo(self):
+    def asegurar_insumo(self, crear_si_falta=False):
         insumo = getattr(self, "insumo", None)
         nombre_insumo = f"Tarea: {self.titulo}"
         if insumo is None:
+            if not crear_si_falta:
+                return None
             insumo, _ = InsumoCalificacion.objects.get_or_create(
                 tarea=self,
                 defaults={
@@ -316,9 +318,10 @@ class Tarea(models.Model):
         return insumo
 
     def save(self, *args, **kwargs):
+        es_nueva = self._state.adding
         self.full_clean()
         super().save(*args, **kwargs)
-        self.asegurar_insumo()
+        self.asegurar_insumo(crear_si_falta=es_nueva)
 
     def __str__(self):
         return f"{self.titulo} - {self.curso} ({self.materia})"
@@ -393,7 +396,7 @@ class EntregaTarea(models.Model):
 
         if self.tarea_id and self.estudiante_id:
             insumo = self.tarea.asegurar_insumo()
-            if self.calificacion is not None:
+            if insumo is not None and self.calificacion is not None:
                 nota_sobre_diez = (self.calificacion * Decimal("10") / self.tarea.nota_maxima).quantize(
                     Decimal("0.01"), rounding=ROUND_HALF_UP
                 )
@@ -402,7 +405,7 @@ class EntregaTarea(models.Model):
                     estudiante=self.estudiante,
                     defaults={"nota": nota_sobre_diez},
                 )
-            else:
+            elif insumo is not None:
                 RegistroCalificacion.objects.filter(
                     insumo=insumo,
                     estudiante=self.estudiante,
