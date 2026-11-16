@@ -16,6 +16,12 @@ from apps.evaluaciones.forms import (
     InsumoCalificacionForm,
     TareaForm,
 )
+from apps.evaluaciones.grading import (
+    ensure_required_insumos,
+    is_required_insumo,
+    normalize_misplaced_final_insumos,
+    sync_completed_online_exam_grades,
+)
 from apps.evaluaciones.grading_config import (
     PESO_ACTIVIDADES_TRIMESTRE,
     PESO_EXAMEN_FINAL,
@@ -637,6 +643,7 @@ def docente_calificaciones_matrix(request):
             return redirect(redirect_url)
 
         elif action == "delete_insumo":
+            normalize_misplaced_final_insumos(selected_curso, selected_materia)
             insumo = get_object_or_404(
                 InsumoCalificacion,
                 pk=request.POST.get("insumo_id"),
@@ -645,8 +652,8 @@ def docente_calificaciones_matrix(request):
                 trimestre=selected_trimestre,
                 parcial=selected_parcial,
             )
-            if insumo.tipo == InsumoCalificacion.TIPO_EXAMEN_FINAL:
-                messages.error(request, "El Examen Final institucional no se puede eliminar desde esta sábana.")
+            if is_required_insumo(insumo):
+                messages.error(request, "Este insumo institucional es obligatorio y no se puede eliminar.")
             else:
                 nombre_insumo = insumo.nombre
                 insumo.delete()
@@ -667,6 +674,8 @@ def docente_calificaciones_matrix(request):
                     raise ValueError("Selecciona un trimestre y parcial válidos.")
                 if tipo_ins not in dict(InsumoCalificacion.TIPOS):
                     raise ValueError("Selecciona un tipo de insumo válido.")
+                if tipo_ins in (InsumoCalificacion.TIPO_EVALUACION, InsumoCalificacion.TIPO_EXAMEN_FINAL):
+                    raise ValueError("Las evaluaciones institucionales y el examen final son insumos obligatorios.")
                 if not ControlParcial.es_habilitado(trim_ins, parc_ins):
                     raise ValueError(f"El Trimestre {trim_ins} - Parcial {parc_ins} está cerrado.")
                 pond_dec = Decimal(ponderacion_val.replace(",", "."))
@@ -702,7 +711,23 @@ def docente_calificaciones_matrix(request):
     todos_publicados = False
 
     if selected_curso and selected_materia:
-        # Cargar insumos regulares del trimestre y parcial elegidos
+        asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
+        docente_asignado = (
+            user if user.rol == "DOCENTE"
+            else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
+        )
+        insumos_obligatorios = ensure_required_insumos(
+            selected_curso,
+            selected_materia,
+            docente_asignado,
+            selected_trimestre,
+            selected_parcial,
+        )
+        if selected_parcial == 1:
+            sync_completed_online_exam_grades(
+                selected_curso, selected_materia, selected_trimestre, selected_parcial
+            )
+
         insumos_parcial = list(
             InsumoCalificacion.objects.filter(
                 curso=selected_curso,
@@ -711,33 +736,14 @@ def docente_calificaciones_matrix(request):
                 parcial=selected_parcial,
             ).exclude(tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL).order_by("tipo", "created_at")
         )
+        required_ids = {ins.pk for ins in insumos_obligatorios}
+        for insumo in insumos_parcial:
+            insumo.es_obligatorio = insumo.pk in required_ids
 
-        # Cargar insumo de Examen Final
-        insumo_examen_final = InsumoCalificacion.objects.filter(
-            curso=selected_curso,
-            materia=selected_materia,
-            tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL,
-        ).first()
-
-        asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
-        docente_asignado = (
-            user if user.rol == "DOCENTE"
-            else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
+        insumo_examen_final = next(
+            (ins for ins in insumos_obligatorios if ins.tipo == InsumoCalificacion.TIPO_EXAMEN_FINAL),
+            None,
         )
-
-        # Asegurar existencia del Examen Final si no existe
-        if not insumo_examen_final:
-            insumo_examen_final = InsumoCalificacion.objects.create(
-                curso=selected_curso,
-                materia=selected_materia,
-                docente=docente_asignado,
-                nombre="Examen Final Institucional",
-                tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL,
-                trimestre=3,
-                parcial=2,
-                periodo="Examen Final",
-                ponderacion=PESO_EXAMEN_FINAL,
-            )
 
         todos_insumos = insumos_parcial + ([insumo_examen_final] if insumo_examen_final else [])
         todos_publicados = all(i.publicado for i in todos_insumos) if todos_insumos else False

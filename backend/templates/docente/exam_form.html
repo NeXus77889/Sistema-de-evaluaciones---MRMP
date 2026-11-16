@@ -164,6 +164,20 @@
           {% if form.materia.errors %}<div class="field-error">{{ form.materia.errors }}</div>{% endif %}
         </div>
 
+        <div class="form-card-field">
+          <label for="{{ form.trimestre.id_for_label }}">Trimestre de calificación *</label>
+          {{ form.trimestre }}
+          <p class="field-help">La nota se asignará a este trimestre.</p>
+          {% if form.trimestre.errors %}<div class="field-error">{{ form.trimestre.errors }}</div>{% endif %}
+        </div>
+
+        <div class="form-card-field">
+          <label for="{{ form.parcial.id_for_label }}">Parcial *</label>
+          {{ form.parcial }}
+          <p class="field-help">Las evaluaciones en línea cuentan como insumo del primer parcial (20%).</p>
+          {% if form.parcial.errors %}<div class="field-error">{{ form.parcial.errors }}</div>{% endif %}
+        </div>
+
         <!-- Campo oculto curso base -->
         <div style="display: none;">
           {{ form.curso }}
@@ -299,8 +313,11 @@
     </div>
     <dl>
       <div><dt>Materia</dt><dd id="preview-subject">Sin seleccionar</dd></div>
+      <div><dt>Periodo</dt><dd id="preview-period">Sin seleccionar</dd></div>
       <div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div>
       <div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div>
+      <div><dt>Preguntas</dt><dd id="preview-question-count">0</dd></div>
+      <div><dt>Puntaje total</dt><dd id="preview-total-points">0</dd></div>
     </dl>
   </section>
 

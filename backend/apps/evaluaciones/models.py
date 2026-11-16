@@ -64,6 +64,16 @@ class AsignacionDocente(models.Model):
 
 
 class Exam(models.Model):
+    TRIMESTRES = [
+        (1, "Primer trimestre"),
+        (2, "Segundo trimestre"),
+        (3, "Tercer trimestre"),
+    ]
+    PARCIALES = [
+        (1, "Primer parcial"),
+        (2, "Segundo parcial"),
+    ]
+
     teacher = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -72,6 +82,8 @@ class Exam(models.Model):
     )
     materia = models.ForeignKey(Materia, on_delete=models.PROTECT, null=True)
     curso = models.ForeignKey(Curso, on_delete=models.PROTECT, null=True)
+    trimestre = models.PositiveSmallIntegerField(choices=TRIMESTRES, null=True, blank=True)
+    parcial = models.PositiveSmallIntegerField(choices=PARCIALES, null=True, blank=True)
     cursos = models.ManyToManyField(
         Curso,
         blank=True,
@@ -112,6 +124,10 @@ class Exam(models.Model):
     def clean(self):
         if self.available_until and self.available_until <= self.available_from:
             raise ValidationError({"available_until": "Debe ser posterior al inicio."})
+        if self.parcial not in (None, 1):
+            raise ValidationError({"parcial": "Las evaluaciones en línea corresponden al primer parcial."})
+        if (self.trimestre is None) != (self.parcial is None):
+            raise ValidationError("Selecciona el trimestre y el parcial de la evaluación.")
         if self.teacher_id and self.materia_id and self.curso_id:
             assigned = AsignacionDocente.objects.filter(
                 docente=self.teacher,
