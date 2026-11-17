@@ -64,7 +64,6 @@ class AsignacionDocente(models.Model):
 
 
 class Exam(models.Model):
-<<<<<<< HEAD
     TRIMESTRES = [
         (1, "Primer trimestre"),
         (2, "Segundo trimestre"),
@@ -75,8 +74,6 @@ class Exam(models.Model):
         (2, "Segundo parcial"),
     ]
 
-=======
->>>>>>> master
     teacher = models.ForeignKey(
         settings.AUTH_USER_MODEL,
         on_delete=models.PROTECT,
@@ -85,11 +82,8 @@ class Exam(models.Model):
     )
     materia = models.ForeignKey(Materia, on_delete=models.PROTECT, null=True)
     curso = models.ForeignKey(Curso, on_delete=models.PROTECT, null=True)
-<<<<<<< HEAD
     trimestre = models.PositiveSmallIntegerField(choices=TRIMESTRES, null=True, blank=True)
     parcial = models.PositiveSmallIntegerField(choices=PARCIALES, null=True, blank=True)
-=======
->>>>>>> master
     cursos = models.ManyToManyField(
         Curso,
         blank=True,
@@ -113,7 +107,6 @@ class Exam(models.Model):
         help_text="Indica si la evaluación ha sido revisada y aprobada por la administración.",
     )
     results_visible = models.BooleanField(default=False)
-<<<<<<< HEAD
     detect_nearby_ips = models.BooleanField(
         default=False,
         verbose_name="Detectar IPs cercanas",
@@ -135,8 +128,6 @@ class Exam(models.Model):
         verbose_name="Orden aleatorio",
         help_text="Cada estudiante ve las preguntas y las opciones en un orden distinto.",
     )
-=======
->>>>>>> master
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -154,13 +145,10 @@ class Exam(models.Model):
     def clean(self):
         if self.available_until and self.available_until <= self.available_from:
             raise ValidationError({"available_until": "Debe ser posterior al inicio."})
-<<<<<<< HEAD
         if self.parcial not in (None, 1):
             raise ValidationError({"parcial": "Las evaluaciones en línea corresponden al primer parcial."})
         if (self.trimestre is None) != (self.parcial is None):
             raise ValidationError("Selecciona el trimestre y el parcial de la evaluación.")
-=======
->>>>>>> master
         if self.teacher_id and self.materia_id and self.curso_id:
             assigned = AsignacionDocente.objects.filter(
                 docente=self.teacher,
@@ -307,19 +295,12 @@ class Tarea(models.Model):
                         "El docente no tiene asignación activa para dictar esta materia en este curso."
                     )
 
-<<<<<<< HEAD
     def asegurar_insumo(self, crear_si_falta=False):
         insumo = getattr(self, "insumo", None)
         nombre_insumo = f"Tarea: {self.titulo}"
         if insumo is None:
             if not crear_si_falta:
                 return None
-=======
-    def asegurar_insumo(self):
-        insumo = getattr(self, "insumo", None)
-        nombre_insumo = f"Tarea: {self.titulo}"
-        if insumo is None:
->>>>>>> master
             insumo, _ = InsumoCalificacion.objects.get_or_create(
                 tarea=self,
                 defaults={
@@ -374,16 +355,10 @@ class Tarea(models.Model):
         return insumo
 
     def save(self, *args, **kwargs):
-<<<<<<< HEAD
         es_nueva = self._state.adding
         self.full_clean()
         super().save(*args, **kwargs)
         self.asegurar_insumo(crear_si_falta=es_nueva)
-=======
-        self.full_clean()
-        super().save(*args, **kwargs)
-        self.asegurar_insumo()
->>>>>>> master
 
     def __str__(self):
         return f"{self.titulo} - {self.curso} ({self.materia})"
@@ -458,11 +433,7 @@ class EntregaTarea(models.Model):
 
         if self.tarea_id and self.estudiante_id:
             insumo = self.tarea.asegurar_insumo()
-<<<<<<< HEAD
             if insumo is not None and self.calificacion is not None:
-=======
-            if self.calificacion is not None:
->>>>>>> master
                 nota_sobre_diez = (self.calificacion * Decimal("10") / self.tarea.nota_maxima).quantize(
                     Decimal("0.01"), rounding=ROUND_HALF_UP
                 )
@@ -471,11 +442,7 @@ class EntregaTarea(models.Model):
                     estudiante=self.estudiante,
                     defaults={"nota": nota_sobre_diez},
                 )
-<<<<<<< HEAD
             elif insumo is not None:
-=======
-            else:
->>>>>>> master
                 RegistroCalificacion.objects.filter(
                     insumo=insumo,
                     estudiante=self.estudiante,
