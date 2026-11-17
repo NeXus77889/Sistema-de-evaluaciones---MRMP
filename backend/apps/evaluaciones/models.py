@@ -107,6 +107,14 @@ class Exam(models.Model):
         help_text="Indica si la evaluación ha sido revisada y aprobada por la administración.",
     )
     results_visible = models.BooleanField(default=False)
+    detect_nearby_ips = models.BooleanField(
+        default=False,
+        verbose_name="Detectar IPs cercanas",
+        help_text=(
+            "Registra la IP de cada estudiante al iniciar y agrega al informe PDF "
+            "los estudiantes que rindieron desde la misma IP o red."
+        ),
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

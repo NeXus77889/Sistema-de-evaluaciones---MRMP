@@ -1,4 +1,5 @@
 from io import BytesIO
+from xml.sax.saxutils import escape
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -13,11 +14,72 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from apps.intentos.models import Attempt
+from apps.monitoreo.network import find_nearby_attempts, network_of
 from apps.monitoreo.services import assess_attempt
 from apps.reportes.models import AttemptReport
 
 
-def build_pdf(attempt):
+def _network_section(attempt, styles):
+    """Sección "Direcciones IP cercanas" del informe (solo para docente/administración)."""
+    story = [Paragraph("Direcciones IP cercanas", styles["SectionHeading"])]
+    if not attempt.ip_address:
+        story.append(Paragraph("No se registró la IP de este intento.", styles["BodyText"]))
+        return story
+    network = network_of(attempt.ip_address)
+    nearby = find_nearby_attempts(attempt)
+    story.append(Paragraph(
+        f"IP registrada al iniciar: <b>{escape(attempt.ip_address)}</b> "
+        f"(red {escape(str(network))}).",
+        styles["BodyText"],
+    ))
+    if nearby:
+        rows = [["Estudiante", "Identificación", "IP", "Coincidencia"]]
+        for item in nearby:
+            student = item.attempt.student
+            rows.append([
+                Paragraph(escape(student.get_full_name() or student.username), styles["SmallCell"]),
+                Paragraph(escape(student.identification or "No registrada"), styles["SmallCell"]),
+                Paragraph(escape(item.attempt.ip_address), styles["SmallCell"]),
+                Paragraph(item.relation, styles["SmallCell"]),
+            ])
+        table = Table(rows, colWidths=[60 * mm, 38 * mm, 40 * mm, 36 * mm], repeatRows=1)
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#173b35")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f5f8f6")]),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d4ddd9")),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+            ("TOPPADDING", (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ]))
+        story.extend([Spacer(1, 3 * mm), table])
+    else:
+        story.append(Paragraph(
+            "No se encontraron otros estudiantes con la misma IP o red en esta evaluación.",
+            styles["BodyText"],
+        ))
+    story.append(Paragraph(
+        "Compartir red puede ser legítimo (mismo hogar, mismo Wi-Fi o red móvil) y no prueba "
+        "colaboración. Solo se comparan los intentos registrados hasta el momento de generar "
+        "este informe.",
+        styles["SmallCell"],
+    ))
+    return story
+
+
+def build_pdf(attempt, include_network=None):
+    """Genera el PDF del intento.
+
+    include_network: None = usar la opción de la evaluación; False = omitir siempre la
+    sección de IPs (por ejemplo, para el propio estudiante, que no debe ver a otros).
+    """
+    if include_network is None:
+        include_network = attempt.exam.detect_nearby_ips
+    include_network = bool(include_network and attempt.exam.detect_nearby_ips)
     assessment = assess_attempt(attempt)
     events = list(attempt.incidents.all())
     output = BytesIO()
@@ -118,6 +180,8 @@ def build_pdf(attempt):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(event_table)
+    if include_network:
+        story.extend(_network_section(attempt, styles))
     document.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
     return output.getvalue()
 

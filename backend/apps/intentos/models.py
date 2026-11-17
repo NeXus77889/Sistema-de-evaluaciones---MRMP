@@ -23,6 +23,8 @@ class Attempt(models.Model):
     percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     suspicion_score = models.PositiveSmallIntegerField(null=True, blank=True)
     suspicion_level = models.CharField(max_length=8, blank=True)
+    # Solo se llena cuando la evaluación tiene activada la detección de IPs cercanas.
+    ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP al iniciar")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

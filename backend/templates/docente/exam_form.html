@@ -265,6 +265,12 @@
               <span>Mostrar resultados al estudiante al finalizar la prueba</span>
             </label>
             {% if form.results_visible.errors %}<div class="field-error">{{ form.results_visible.errors }}</div>{% endif %}
+
+            <label class="checkbox-inline-label" for="{{ form.detect_nearby_ips.id_for_label }}">
+              {{ form.detect_nearby_ips }}
+              <span>Detectar IPs cercanas: registrar la IP de cada estudiante y mostrar en el informe PDF quiénes rindieron desde la misma IP o red</span>
+            </label>
+            {% if form.detect_nearby_ips.errors %}<div class="field-error">{{ form.detect_nearby_ips.errors }}</div>{% endif %}
           </div>
         </div>
 

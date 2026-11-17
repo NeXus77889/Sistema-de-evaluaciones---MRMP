@@ -11,6 +11,7 @@ from rest_framework.views import APIView
 from apps.evaluaciones.models import Exam, Option, Question
 from apps.intentos.models import Answer, Attempt, Incident
 from apps.intentos.services import finish_attempt
+from apps.monitoreo.network import get_client_ip
 from apps.core.models import TicketAtencion
 
 logger = logging.getLogger(__name__)
@@ -69,13 +70,18 @@ class StartAttemptView(APIView):
             if len(options) < 2 or sum(option.is_correct for option in options) != 1:
                 raise ValidationError("La evaluación contiene una pregunta incompleta.")
 
+        # La IP solo se registra si el docente activó la detección en esta evaluación.
+        client_ip = get_client_ip(request) if exam.detect_nearby_ips else None
         attempt, created = Attempt.objects.get_or_create(
             exam=exam,
             student=request.user,
-            defaults={"started_at": now},
+            defaults={"started_at": now, "ip_address": client_ip},
         )
         if attempt.status == Attempt.Status.SUBMITTED:
             raise ValidationError("Ya existe un intento entregado para esta evaluación.")
+        if client_ip and not attempt.ip_address:
+            attempt.ip_address = client_ip
+            attempt.save(update_fields=["ip_address"])
         if timezone.now() >= attempt.deadline:
             finished, changed = finish_attempt(attempt.pk)
             if changed:

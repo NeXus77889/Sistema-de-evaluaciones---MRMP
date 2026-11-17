@@ -175,6 +175,7 @@ class ExamForm(forms.ModelForm):
             "available_until",
             "published",
             "results_visible",
+            "detect_nearby_ips",
             "students",
         ]
         widgets = {
