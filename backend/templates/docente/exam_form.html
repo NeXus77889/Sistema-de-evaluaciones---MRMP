@@ -271,6 +271,18 @@
               <span>Detectar IPs cercanas: registrar la IP de cada estudiante y mostrar en el informe PDF quiénes rindieron desde la misma IP o red</span>
             </label>
             {% if form.detect_nearby_ips.errors %}<div class="field-error">{{ form.detect_nearby_ips.errors }}</div>{% endif %}
+
+            <label class="checkbox-inline-label" for="{{ form.camera_ai_detection.id_for_label }}">
+              {{ form.camera_ai_detection }}
+              <span>Detección de teléfono por cámara: el navegador del estudiante analiza la cámara y registra una incidencia si aparece un teléfono o no se ve a la persona (no se guardan imágenes y no cuenta para las 3 infracciones)</span>
+            </label>
+            {% if form.camera_ai_detection.errors %}<div class="field-error">{{ form.camera_ai_detection.errors }}</div>{% endif %}
+
+            <label class="checkbox-inline-label" for="{{ form.randomize_order.id_for_label }}">
+              {{ form.randomize_order }}
+              <span>Orden aleatorio: cada estudiante ve las preguntas y las opciones en un orden distinto</span>
+            </label>
+            {% if form.randomize_order.errors %}<div class="field-error">{{ form.randomize_order.errors }}</div>{% endif %}
           </div>
         </div>
 

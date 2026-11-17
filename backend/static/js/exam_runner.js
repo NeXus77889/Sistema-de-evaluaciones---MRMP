@@ -28,6 +28,7 @@
   let incidentPollHandle;
   let incidentPollBusy = false;
   let deviceIncidentActive = false;
+  let cameraMonitor = null;
   const tracks = {};
 
   function renderIncidentCount(count) {
@@ -82,6 +83,14 @@
       if (!response.ok) throw new Error("incident confirmation failed");
       const result = await response.json();
       renderIncidentCount(result.incident_count ?? result.focus_offense_count);
+      if (result.counts_as_strike === false) {
+        warning.hidden = false;
+        warning.textContent = kind === "phone_detected"
+          ? "Se detectó un teléfono frente a la cámara. Queda registrado en el informe del docente."
+          : "No se te ve en la cámara. Mantente frente a ella durante la evaluación.";
+        window.setTimeout(() => { if (lock.hidden) warning.hidden = true; }, 8000);
+        return;
+      }
       if (result.focus_offense_count !== null && result.focus_offense_count !== undefined) {
         warning.hidden = false;
         warning.textContent = `Advertencia: ${result.focus_offense_count} de 3 infracciones registradas.`;
@@ -338,6 +347,22 @@
     shell.hidden = false;
   }
 
+  function cameraIsLive() {
+    const camera = tracks.camera;
+    return Boolean(camera && camera.readyState === "live" && camera.enabled && !camera.muted);
+  }
+
+  function startCameraMonitor() {
+    if (preflight.dataset.cameraAi !== "true" || !window.ExamCameraMonitor || cameraMonitor) return;
+    cameraMonitor = window.ExamCameraMonitor.start({
+      video: preview,
+      status: document.querySelector("#camera-ai-status"),
+      // No analizar si la evaluación está pausada, la pestaña oculta o la cámara sin señal.
+      skip: () => !lock.hidden || document.visibilityState !== "visible" || !cameraIsLive(),
+      report: (kind) => sendIncident(kind),
+    });
+  }
+
   enableDevices.addEventListener("click", async () => {
     enableDevices.disabled = true;
     preflightError.textContent = "";
@@ -386,6 +411,7 @@
       if (!startResponse.ok) throw new Error(startData.detail || "No se pudo iniciar la evaluación.");
       attemptId = startData.attempt_id;
       await loadExam(attemptId, `${preflight.dataset.apiRoot}${attemptId}/`);
+      startCameraMonitor();
     } catch (error) {
       preflightError.textContent = error.message || "No se pudieron habilitar cámara y micrófono. Revisa los permisos del navegador.";
       begin.disabled = !(tracks.camera?.readyState === "live" && tracks.microphone?.readyState === "live");

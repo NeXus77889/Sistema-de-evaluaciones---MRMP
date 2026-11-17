@@ -176,6 +176,8 @@ class ExamForm(forms.ModelForm):
             "published",
             "results_visible",
             "detect_nearby_ips",
+            "camera_ai_detection",
+            "randomize_order",
             "students",
         ]
         widgets = {

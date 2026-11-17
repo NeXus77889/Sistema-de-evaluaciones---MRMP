@@ -115,6 +115,19 @@ class Exam(models.Model):
             "los estudiantes que rindieron desde la misma IP o red."
         ),
     )
+    camera_ai_detection = models.BooleanField(
+        default=False,
+        verbose_name="Detección de teléfono por cámara",
+        help_text=(
+            "Analiza la cámara en el navegador del estudiante y registra una incidencia "
+            "si aparece un teléfono o no se ve a la persona. No guarda imágenes."
+        ),
+    )
+    randomize_order = models.BooleanField(
+        default=False,
+        verbose_name="Orden aleatorio",
+        help_text="Cada estudiante ve las preguntas y las opciones en un orden distinto.",
+    )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

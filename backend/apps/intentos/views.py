@@ -1,4 +1,5 @@
 import logging
+import random
 from django.db import transaction
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -9,7 +10,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.evaluaciones.models import Exam, Option, Question
-from apps.intentos.models import Answer, Attempt, Incident
+from apps.intentos.models import NON_STRIKE_KINDS, Answer, Attempt, Incident, strike_incidents
 from apps.intentos.services import finish_attempt
 from apps.monitoreo.network import get_client_ip
 from apps.core.models import TicketAtencion
@@ -50,6 +51,23 @@ def create_report_safely(attempt):
         create_and_email_report(attempt.pk)
     except Exception:
         logger.exception("No se pudo generar o enviar el informe del intento %s", attempt.pk)
+
+
+def ordered_questions(attempt):
+    """Preguntas del intento, con opciones en `ordered_options`.
+
+    Si la evaluación tiene orden aleatorio, la mezcla es distinta para cada intento pero
+    estable: se genera con una semilla fija, así que al recargar el estudiante ve lo mismo.
+    """
+    questions = list(attempt.exam.questions.prefetch_related("options").all())
+    for question in questions:
+        question.ordered_options = list(question.options.all())
+    if attempt.exam.randomize_order:
+        rng = random.Random(f"intento-{attempt.pk}-{attempt.exam_id}")
+        rng.shuffle(questions)
+        for question in questions:
+            rng.shuffle(question.ordered_options)
+    return questions
 
 
 class StartAttemptView(APIView):
@@ -111,7 +129,7 @@ class AttemptStateView(APIView):
             attempt, changed = finish_attempt(attempt.pk)
             if changed:
                 create_report_safely(attempt)
-        questions = attempt.exam.questions.prefetch_related("options").all()
+        questions = ordered_questions(attempt)
         saved = dict(
             Answer.objects.filter(attempt=attempt).values_list("question_id", "selected_option_id")
         )
@@ -128,7 +146,7 @@ class AttemptStateView(APIView):
                         "position": question.position,
                         "options": [
                             {"id": option.pk, "text": option.text, "position": option.position}
-                            for option in question.options.all()
+                            for option in question.ordered_options
                         ],
                         "selected_option_id": saved.get(question.pk),
                     }
@@ -146,7 +164,7 @@ class AttemptIncidentCountView(APIView):
         attempt = get_object_or_404(Attempt, pk=attempt_id, student=request.user)
         return Response({
             "attempt_id": attempt.pk,
-            "incident_count": Incident.objects.filter(attempt=attempt).count(),
+            "incident_count": strike_incidents(attempt).count(),
             "incident_limit": 3,
             "status": attempt.status,
         })
@@ -198,21 +216,25 @@ class RecordIncidentView(APIView):
             if previous_incident:
                 if previous_incident.attempt_id != attempt.pk:
                     raise ValidationError("El identificador del evento ya fue utilizado.")
-                ticket_code = f"SEC-PROCTOR-{attempt.pk}-{previous_incident.pk}"
-                TicketAtencion.objects.get_or_create(
-                    codigo=ticket_code,
-                    defaults={
-                        "tipo": TicketAtencion.Tipo.PROCTOR,
-                        "estudiante": attempt.student,
-                        "intento": attempt,
-                        "creado_por": request.user,
-                    },
-                )
-                focus_count = Incident.objects.filter(attempt=attempt).count()
+                counts_as_strike = previous_incident.kind not in NON_STRIKE_KINDS
+                ticket_code = None
+                if counts_as_strike:
+                    ticket_code = f"SEC-PROCTOR-{attempt.pk}-{previous_incident.pk}"
+                    TicketAtencion.objects.get_or_create(
+                        codigo=ticket_code,
+                        defaults={
+                            "tipo": TicketAtencion.Tipo.PROCTOR,
+                            "estudiante": attempt.student,
+                            "intento": attempt,
+                            "creado_por": request.user,
+                        },
+                    )
+                focus_count = strike_incidents(attempt).count()
                 return Response(
                     {
                         "received": True,
                         "duplicate": True,
+                        "counts_as_strike": counts_as_strike,
                         "focus_offense_count": focus_count,
                         "incident_count": focus_count,
                         "auto_submitted": False,
@@ -223,7 +245,7 @@ class RecordIncidentView(APIView):
         require_active(attempt)
         severity = (
             Incident.Severity.HIGH
-            if kind in {Incident.Kind.CAMERA_LOST, Incident.Kind.MICROPHONE_LOST}
+            if kind in {Incident.Kind.CAMERA_LOST, Incident.Kind.MICROPHONE_LOST, Incident.Kind.PHONE_DETECTED}
             else Incident.Severity.MEDIUM
         )
         incident_values = {
@@ -243,19 +265,21 @@ class RecordIncidentView(APIView):
             created = True
         if incident.attempt_id != attempt.pk:
             raise ValidationError("El identificador del evento ya fue utilizado.")
-        security_ticket_code = f"SEC-PROCTOR-{attempt.pk}-{incident.pk}"
-        TicketAtencion.objects.get_or_create(
-            codigo=security_ticket_code,
-            defaults={
-                "tipo": TicketAtencion.Tipo.PROCTOR,
-                "estudiante": attempt.student,
-                "intento": attempt,
-                "creado_por": request.user,
-            },
-        )
-        focus_offense_count = None
+        counts_as_strike = kind not in NON_STRIKE_KINDS
+        security_ticket_code = None
+        if counts_as_strike:
+            security_ticket_code = f"SEC-PROCTOR-{attempt.pk}-{incident.pk}"
+            TicketAtencion.objects.get_or_create(
+                codigo=security_ticket_code,
+                defaults={
+                    "tipo": TicketAtencion.Tipo.PROCTOR,
+                    "estudiante": attempt.student,
+                    "intento": attempt,
+                    "creado_por": request.user,
+                },
+            )
         auto_submitted = False
-        focus_offense_count = Incident.objects.filter(attempt=attempt).count()
+        focus_offense_count = strike_incidents(attempt).count()
         if focus_offense_count >= 3 and attempt.status == Attempt.Status.IN_PROGRESS:
             finished, auto_submitted = finish_attempt(attempt.pk)
             if auto_submitted:
@@ -264,6 +288,7 @@ class RecordIncidentView(APIView):
             {
                 "received": True,
                 "duplicate": not created,
+                "counts_as_strike": counts_as_strike,
                 "focus_offense_count": focus_offense_count,
                 "incident_count": focus_offense_count,
                 "auto_submitted": auto_submitted,

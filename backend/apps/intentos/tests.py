@@ -84,6 +84,47 @@ class AttemptApiTests(TestCase):
             ).data["attempt_id"]
         self.assertEqual(Attempt.objects.get(pk=attempt_id).ip_address, "190.10.20.5")
 
+    def test_camera_detections_do_not_count_as_strikes_or_create_tickets(self):
+        attempt_id = self.start_attempt()
+        for _ in range(4):
+            response = self.client.post(
+                reverse("attempt-incident", args=[attempt_id]),
+                {"kind": "phone_detected", "client_event_id": str(uuid.uuid4())},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 200)
+            self.assertFalse(response.data["counts_as_strike"])
+            self.assertFalse(response.data["auto_submitted"])
+            self.assertEqual(response.data["incident_count"], 0)
+            self.assertIsNone(response.data["security_ticket_code"])
+        self.assertEqual(Incident.objects.filter(attempt_id=attempt_id).count(), 4)
+        self.assertFalse(TicketAtencion.objects.filter(intento_id=attempt_id).exists())
+        self.assertEqual(Attempt.objects.get(pk=attempt_id).status, Attempt.Status.IN_PROGRESS)
+
+    def test_real_infractions_still_retire_the_student_after_three(self):
+        attempt_id = self.start_attempt()
+        for _ in range(3):
+            response = self.client.post(
+                reverse("attempt-incident", args=[attempt_id]),
+                {"kind": "tab_hidden", "client_event_id": str(uuid.uuid4())},
+                format="json",
+            )
+        self.assertTrue(response.data["auto_submitted"])
+
+    def test_randomized_order_is_stable_per_attempt_and_keeps_all_questions(self):
+        self.exam.randomize_order = True
+        self.exam.save()
+        attempt_id = self.start_attempt()
+        first = self.client.get(reverse("attempt-state", args=[attempt_id])).data["questions"]
+        second = self.client.get(reverse("attempt-state", args=[attempt_id])).data["questions"]
+        self.assertEqual(first, second)
+        self.assertEqual(
+            sorted(question["id"] for question in first),
+            sorted(self.exam.questions.values_list("pk", flat=True)),
+        )
+        for question in first:
+            self.assertEqual(len(question["options"]), 2)
+
     def test_start_hides_correct_answer_and_other_student_cannot_read_attempt(self):
         attempt_id = self.start_attempt()
         response = self.client.get(reverse("attempt-state", args=[attempt_id]))

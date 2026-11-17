@@ -180,6 +180,14 @@ def build_pdf(attempt, include_network=None):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(event_table)
+    if {"phone_detected", "face_missing"} & set(assessment.by_kind):
+        story.append(Spacer(1, 3 * mm))
+        story.append(Paragraph(
+            "Las incidencias «Teléfono detectado» y «Rostro no detectado» provienen del análisis "
+            "automático de la cámara y pueden ser falsos positivos; no cuentan para las tres "
+            "infracciones que retiran al estudiante. Verifica el contexto antes de decidir.",
+            styles["SmallCell"],
+        ))
     if include_network:
         story.extend(_network_section(attempt, styles))
     document.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
