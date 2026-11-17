@@ -1,7 +1,7 @@
-﻿{% extends "base.html" %}
+{% extends "base.html" %}
 {% load evaluaciones_tags %}
 
-{% block title %}Calificaciones â€” Panel Docente{% endblock %}
+{% block title %}Calificaciones — Panel Docente{% endblock %}
 
 {% block content %}
 <style>
@@ -36,7 +36,8 @@
 
   .cal-btn-publish {
     background: var(--cal-primary);
-    border-color: var(--cal-primary);  }
+    border-color: var(--cal-primary);
+  }
 
   .cal-btn-draft {
     color: var(--cal-warn);
@@ -54,7 +55,8 @@
     margin-bottom: 1.5rem;
     padding: 1.25rem 1.35rem 1.4rem;
     box-shadow: 0 8px 25px rgba(0, 40, 85, .055);
-    border-top: 3px solid var(--cal-accent);  }
+    border-top: 3px solid var(--cal-accent);
+  }
 
   .cal-filters form {
     display: flex;
@@ -97,6 +99,7 @@
   }
 
   .cal-select:focus, .cal-field:focus { outline: none; border-color: var(--cal-accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, .13); }
+
   .cal-status {
     margin-bottom: 1rem;
     display: flex;
@@ -114,7 +117,8 @@
   .cal-status.is-published {
     background: #eff6ff;
     border-left-color: var(--cal-accent);
-    color: #1e40af;  }
+    color: #1e40af;
+  }
 
   .cal-status small {
     display: block;
@@ -204,6 +208,36 @@
   .cal-th-final { border-top: 3px solid var(--cal-final); }
   .cal-task-grade-source { display: block; margin: .28rem auto 0; color: var(--cal-muted); font-size: .68rem; }
   .cal-sheet-foot { background: linear-gradient(90deg, #f8fafc, #eef5ff); }
+
+  .cal-save-state {
+    font-size: .85rem;
+    font-weight: 600;
+    color: var(--cal-ok);
+    display: none;
+  }
+
+  .cal-save-state.is-error {
+    color: var(--cal-error);
+  }
+
+  .cal-sheet-foot {
+    padding: 1.25rem 1.5rem;
+    background: #f8fafc;
+    border-top: 1px solid var(--cal-border);
+    display: flex;
+    justify-content: flex-end;
+    gap: 1rem;
+  }
+
+  .cal-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .cal-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
     min-width: 860px;
   }
 
@@ -220,6 +254,55 @@
   .cal-table td {
     padding: .65rem .75rem;
     border-bottom: 1px solid #e2e8f0;
+  }
+
+  .cal-th-num {
+    text-align: left;
+    width: 40px;
+  }
+
+  .cal-th-student {
+    text-align: left;
+    min-width: 220px;
+  }
+
+  .cal-th-insumo {
+    text-align: center;
+    min-width: 130px;
+    background: #f1f5f9;
+  }
+
+  .cal-th-insumo.is-alt {
+    background: #e2e8f0;
+  }
+
+  .cal-th-insumo strong {
+    display: block;
+    font-size: .85rem;
+    color: var(--cal-primary);
+  }
+
+  .cal-th-insumo small {
+    display: block;
+    color: var(--cal-accent);
+    font-weight: 600;
+  }
+
+  .cal-tag-tarea {
+    display: inline-block;
+    margin-top: .2rem;
+    padding: .05rem .45rem;
+    border-radius: 999px;
+    background: #dbeafe;
+    color: #1e40af;
+    font-size: .7rem;
+    font-weight: 700;
+  }
+  .cal-tag-obligatorio { display: inline-block; margin: .3rem auto 0; padding: .15rem .5rem; border: 1px solid #f0d58a; border-radius: 999px; color: #76520a; background: #fff8df; font-size: .65rem; font-weight: 800; white-space: nowrap; }
+
+  .cal-delete-insumo { display: inline-flex; margin-top: .4rem; padding: .25rem .5rem; border: 1px solid #fecaca; border-radius: .4rem; color: #b91c1c; background: #fff7f7; font-size: .68rem; font-weight: 700; cursor: pointer; }
+  .cal-delete-insumo:hover { border-color: #ef4444; background: #fef2f2; }
+
   .cal-th-prom {
     text-align: center;
     width: 130px;
@@ -418,14 +501,62 @@
   @media (max-width: 720px) {
     .cal-overview { grid-template-columns: 1fr; }
     .cal-th-student, .cal-td-student { left: 0; }
-    .cal-table-toolbar { align-items: flex-start; flex-direction: column; }</style>
+    .cal-table-toolbar { align-items: flex-start; flex-direction: column; }
+
+    .cal-sheet-head,
+    .cal-sheet-foot {
+      padding: 1rem;
+    }
+
+    .cal-sheet-foot .button,
+    .cal-sheet-head .button {
+      width: 100%;
+    }
+
+    .cal-th-num,
+    .cal-td-num {
+      display: none;
+    }
+
+    /* La columna del estudiante queda fija al desplazar horizontalmente. */
+    .cal-th-student,
+    .cal-td-student {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      min-width: 150px;
+      background: var(--cal-surface);
+    }
+
+    .cal-th-student {
+      background: #f8fafc;
+    }
+
+    .cal-modal-box {
+      padding: 1.25rem;
+    }
+
+    .cal-form-split {
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .cal-form-split>div {
+      margin-bottom: 1.2rem;
+    }
+  }
+
+  @media (min-width: 721px) and (max-width: 1020px) {
+    .cal-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
 
 <div class="cal-page">
   <div class="page-heading">
     <div>
-      <span class="eyebrow">{% if es_admin %}AuditorÃ­a Administrativa{% else %}Sistema Institucional de Calificaciones{% endif %}</span>
-      <h1>{% if es_admin %}SupervisiÃ³n de SÃ¡bana de Notas{% else %}SÃ¡bana de Notas por Curso{% endif %}</h1>
-      <p>{% if es_admin %}RevisiÃ³n y auditorÃ­a de insumos acadÃ©micos registrados por los docentes.{% else %}Registro y publicaciÃ³n de insumos acadÃ©micos (0.00 - 10.00), trimestres, parciales y examen final.{% endif %}</p>
+      <span class="eyebrow">{% if es_admin %}Auditoría Administrativa{% else %}Sistema Institucional de Calificaciones{% endif %}</span>
+      <h1>{% if es_admin %}Supervisión de Sábana de Notas{% else %}Sábana de Notas por Curso{% endif %}</h1>
+      <p>{% if es_admin %}Revisión y auditoría de insumos académicos registrados por los docentes.{% else %}Registro y publicación de insumos académicos (0.00 - 10.00), trimestres, parciales y examen final.{% endif %}</p>
     </div>
     {% if selected_curso and selected_materia and not es_admin and parcial_habilitado %}
     <div class="cal-actions">
@@ -498,7 +629,7 @@
   </section>
 
   {% if selected_curso and selected_materia %}
-  <section class="cal-overview" aria-label="Resumen de la sÃ¡bana">
+  <section class="cal-overview" aria-label="Resumen de la sábana">
     <article class="cal-overview-card">
       <span>Curso seleccionado</span>
       <strong>{{ selected_curso|format_course_name }}</strong>
@@ -512,24 +643,91 @@
       <strong>{{ insumos|length }}</strong>
     </article>
     <article class="cal-overview-card is-navy">
-      <span>Periodo acadÃ©mico</span>
-      <strong>Trimestre {{ selected_trimestre }} Â· Parcial {{ selected_parcial }}</strong>
+      <span>Periodo académico</span>
+      <strong>Trimestre {{ selected_trimestre }} · Parcial {{ selected_parcial }}</strong>
     </article>
-  </section>        <table class="cal-table">
+  </section>
+  {% if es_admin %}
+  <div class="cal-status" style="background: #eff6ff; border-left: 4px solid #2563eb; color: #1e40af;">
+    <div>
+      <strong>Modo Auditoría y Supervisión (Administrador)</strong>
+      <small>Acceso institucional de solo lectura. Los docentes asignados son los responsables de calificar y publicar notas.</small>
+    </div>
+    <span class="status-pill status-live">Supervisión</span>
+  </div>
+  {% elif not parcial_habilitado %}
+  <div class="cal-status" style="background: #fef2f2; border-left: 4px solid #dc2626; color: #991b1b;">
+    <div>
+      <strong>Periodo Finalizado / No Habilitado</strong>
+      <small>El Trimestre {{ selected_trimestre }} - Parcial {{ selected_parcial }} no está habilitado para calificaciones por la administración. No es posible adelantar ni modificar calificaciones sin autorización previa.</small>
+    </div>
+    <span class="status-pill status-draft">Cerrado</span>
+  </div>
+  {% else %}
+  <!-- Estado de publicación docente -->
+  <div class="cal-status{% if todos_publicados %} is-published{% endif %}">
+    <div>
+      <strong>
+        {% if todos_publicados %}Estado: Calificaciones PUBLICADAS{% else %}Estado: Modo BORRADOR (solo visible para el docente){% endif %}
+      </strong>
+      <small>Trimestre {{ selected_trimestre }} · Parcial {{ selected_parcial }} · Las notas se guardan automáticamente al salir de la celda o al pulsar Enter.</small>
+    </div>
+    <span class="status-pill {% if todos_publicados %}status-live{% else %}status-draft{% endif %}">
+      {% if todos_publicados %}Visible{% else %}Oculto{% endif %}
+    </span>
+  </div>
+  {% endif %}
+
+  <!-- Sábana de notas -->
+  <section class="cal-card cal-sheet">
+    <form method="post" id="gradesMatrixForm">
+      {% csrf_token %}
+      <input type="hidden" name="action" value="save_grades">
+      <input type="hidden" name="scroll_pos" id="scrollPosInput" value="">
+
+      <div class="cal-sheet-head">
+        <div>
+          <span class="eyebrow">{{ selected_materia.nombre }} · Trimestre {{ selected_trimestre }} · Parcial {{ selected_parcial }}</span>
+          <h2>Nómina y Sábana de Notas: {{ selected_curso|format_course_name }}</h2>
+        </div>
+        <div class="cal-actions">
+          <span id="saveStatusIndicator" class="cal-save-state" role="status" aria-live="polite"></span>
+          {% if not es_admin and parcial_habilitado %}
+          <button type="submit" class="button button-primary">Guardar Sábana Completa</button>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="cal-table-wrap">
+        <div class="cal-table-toolbar">
+          <strong>Registro individual por estudiante</strong>
+          <span>Las notas se califican sobre 10 · Desplázate horizontalmente para ver todos los insumos</span>
+        </div>
+        <table class="cal-table">
           <thead>
             <tr>
               <th class="cal-th-num">#</th>
               <th class="cal-th-student">Estudiante</th>
               {% for ins in insumos %}
-                <th class="cal-th-insumo{% if forloop.counter|divisibleby:2 %} is-alt{% endif %}{% if ins.es_obligatorio %} is-required{% endif %}">                <strong>{{ ins.nombre }}</strong>
+                <th class="cal-th-insumo{% if forloop.counter|divisibleby:2 %} is-alt{% endif %}{% if ins.es_obligatorio %} is-required{% endif %}">
+                <strong>{{ ins.nombre }}</strong>
                 <small>Peso: {{ ins.ponderacion }}%</small>
-                {% if ins.tarea_id %}<small>Equivalencia: nota sobre {{ ins.tarea.nota_maxima }} â†’ escala /10</small>{% endif %}
+                {% if ins.tarea_id %}<small>Equivalencia: nota sobre {{ ins.tarea.nota_maxima }} → escala /10</small>{% endif %}
                 {% if ins.tarea_id %}<span class="cal-tag-tarea">Tarea</span>{% endif %}
                 {% if ins.es_obligatorio %}
-                <span class="cal-tag-obligatorio">Obligatorio Â· 20%</span>
+                <span class="cal-tag-obligatorio">Obligatorio · 20%</span>
                 {% elif not es_admin and parcial_habilitado %}
-                <button type="submit" form="deleteInsumoForm" name="insumo_id" value="{{ ins.pk }}" class="cal-delete-insumo" onclick="return confirm('Â¿Eliminar este insumo y todas sus calificaciones? Esta acciÃ³n no se puede deshacer.');">Eliminar insumo</button>
-                {% endif %}              </th>
+                <button type="submit" form="deleteInsumoForm" name="insumo_id" value="{{ ins.pk }}" class="cal-delete-insumo" onclick="return confirm('¿Eliminar este insumo y todas sus calificaciones? Esta acción no se puede deshacer.');">Eliminar insumo</button>
+                {% endif %}
+              </th>
+              {% endfor %}
+              <th class="cal-th-prom">Promedio Parcial {{ selected_parcial }}</th>
+              {% if insumo_examen_final %}
+              <th class="cal-th-final">
+                <strong>Examen Final</strong>
+                <small>Pesa {{ peso_examen_final }}%</small>
+                <span class="cal-tag-obligatorio">Institucional · obligatorio</span>
+              </th>
               {% endif %}
             </tr>
           </thead>
@@ -547,7 +745,7 @@
                 <input type="number" step="0.01" min="0.00" max="10.00" inputmode="decimal"
                   name="grade_{{ ni.insumo.pk }}_{{ item.estudiante.pk }}" data-insumo-id="{{ ni.insumo.pk }}"
                   data-estudiante-id="{{ item.estudiante.pk }}" value="{{ ni.nota|default_if_none:'' }}"
-                  class="grade-input" placeholder="â€”"
+                  class="grade-input" placeholder="—"
                   {% if es_admin or not parcial_habilitado %}readonly disabled{% endif %}
                   aria-label="Nota de {{ item.estudiante.last_name }} {{ item.estudiante.first_name }} en {{ ni.insumo.nombre }}">
                 {% if ni.nota_tarea is not None %}<small class="cal-task-grade-source">Nota de la tarea: {{ ni.nota_tarea }} / {{ ni.insumo.tarea.nota_maxima }}</small>{% endif %}
@@ -558,7 +756,7 @@
                 <strong
                   class="cal-promedio {% if item.promedio is None %}is-empty{% elif item.promedio >= 7 %}is-pass{% else %}is-fail{% endif %}"
                   id="promedio_{{ item.estudiante.pk }}">
-                  {% if item.promedio is None %}â€”{% else %}{{ item.promedio }}{% endif %}
+                  {% if item.promedio is None %}—{% else %}{{ item.promedio }}{% endif %}
                 </strong>
               </td>
 
@@ -567,7 +765,7 @@
                 <input type="number" step="0.01" min="0.00" max="10.00" inputmode="decimal"
                   name="grade_{{ insumo_examen_final.pk }}_{{ item.estudiante.pk }}"
                   data-insumo-id="{{ insumo_examen_final.pk }}" data-estudiante-id="{{ item.estudiante.pk }}"
-                  value="{{ item.nota_examen_final|default_if_none:'' }}" class="grade-input is-final" placeholder="â€”"
+                  value="{{ item.nota_examen_final|default_if_none:'' }}" class="grade-input is-final" placeholder="—"
                   {% if es_admin or not parcial_habilitado %}readonly disabled{% endif %}
                   aria-label="Examen final de {{ item.estudiante.last_name }} {{ item.estudiante.first_name }}">
               </td>
@@ -585,7 +783,7 @@
 
       {% if not es_admin and parcial_habilitado %}
       <div class="cal-sheet-foot">
-        <button type="submit" class="button button-primary">Guardar SÃ¡bana Completa</button>
+        <button type="submit" class="button button-primary">Guardar Sábana Completa</button>
       </div>
       {% endif %}
     </form>
@@ -599,14 +797,15 @@
   {% else %}
   <div class="cal-empty">
     <h3>Por favor, selecciona un Curso y una Materia arriba</h3>
-    <p>Para desplegar la sÃ¡bana de calificaciones institucional y gestionar los insumos de tus alumnos por trimestre y parcial.</p>  </div>
+    <p>Para desplegar la sábana de calificaciones institucional y gestionar los insumos de tus alumnos por trimestre y parcial.</p>
+  </div>
   {% endif %}
 
   <!-- Modal para crear un nuevo insumo -->
   <div id="newInsumoModal" class="cal-modal" role="dialog" aria-modal="true" aria-labelledby="newInsumoTitle">
     <div class="cal-modal-box">
-      <h3 id="newInsumoTitle">Crear Insumo AcadÃ©mico</h3>
-      <p>AÃ±ade un nuevo insumo a la sÃ¡bana de calificaciones institucional.</p>
+      <h3 id="newInsumoTitle">Crear Insumo Académico</h3>
+      <p>Añade un nuevo insumo a la sábana de calificaciones institucional.</p>
 
       <form method="post">
         {% csrf_token %}
@@ -614,7 +813,7 @@
 
         <div class="cal-form-row">
           <label for="insumoNombre">Nombre del Insumo *</label>
-          <input id="insumoNombre" type="text" name="nombre" required placeholder="Ej: Insumo 3 - Taller PrÃ¡ctico"
+          <input id="insumoNombre" type="text" name="nombre" required placeholder="Ej: Insumo 3 - Taller Práctico"
             class="cal-field">
         </div>
 
@@ -645,7 +844,7 @@
         </div>
 
         <div class="cal-form-row">
-          <label for="insumoPeso">PonderaciÃ³n Porcentual (%) *</label>
+          <label for="insumoPeso">Ponderación Porcentual (%) *</label>
           {# La vista puede enviar `ponderacion_default` (desde grading_config.py); si no, se usa 35.00. #}
           <input id="insumoPeso" type="number" step="0.01" min="0.01" max="100" name="ponderacion"
             value="{{ ponderacion_default|default:'35.00' }}" required class="cal-field">
@@ -730,7 +929,7 @@
         var type = response.headers.get("content-type") || "";
         if (type.indexOf("application/json") === -1) {
           setCellState(input, "invalid");
-          showSaveStatus("Respuesta invÃ¡lida o sesiÃ³n vencida. Recarga la pÃ¡gina.", true);
+          showSaveStatus("Respuesta inválida o sesión vencida. Recarga la página.", true);
           return false;
         }
         var data = await response.json();
@@ -738,7 +937,7 @@
           setCellState(input, "saved");
           setTimeout(function () { setCellState(input, null); }, 1200);
           updatePromedio(input.dataset.estudianteId, data.promedio);
-          showSaveStatus("âœ“ Guardado", false);
+          showSaveStatus("✓ Guardado", false);
           return true;
         }
         setCellState(input, "invalid");
@@ -769,7 +968,7 @@
       });
     });
 
-    // ---- Conservar la posiciÃ³n de scroll ----
+    // ---- Conservar la posición de scroll ----
     var matrixForm = document.getElementById("gradesMatrixForm");
     if (matrixForm) {
       matrixForm.addEventListener("submit", function () {

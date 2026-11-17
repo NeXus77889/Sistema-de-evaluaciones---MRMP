@@ -1,4 +1,4 @@
-﻿import json
+import json
 import re
 from datetime import timedelta
 from decimal import Decimal, InvalidOperation
@@ -13,7 +13,8 @@ from django.core.exceptions import ValidationError
 from django.db.models import Prefetch, Q
 from django.db import transaction
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, JsonResponse
-from django.shortcuts import get_object_or_404, redirect, renderfrom django.urls import reverse, reverse_lazy
+from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
@@ -61,7 +62,7 @@ class AccountPasswordChangeView(PasswordChangeView):
         self.request.user.debe_cambiar_password = False
         self.request.user.save(update_fields=["debe_cambiar_password"])
         update_session_auth_hash(self.request, self.request.user)
-        messages.success(self.request, "La contraseÃ±a se actualizÃ³ correctamente.")
+        messages.success(self.request, "La contraseña se actualizó correctamente.")
         return response
 
 
@@ -278,7 +279,7 @@ def review_incident(request, incident_id):
     incident = get_object_or_404(Incident.objects.select_related("attempt__exam"), pk=incident_id)
     if request.user.rol == User.Role.TEACHER:
         if incident.attempt.exam.teacher_id != request.user.pk:
-            return HttpResponseForbidden("No puedes revisar incidencias de otra evaluaciÃ³n.")
+            return HttpResponseForbidden("No puedes revisar incidencias de otra evaluación.")
     elif not _is_secretary(request.user):
         return HttpResponseForbidden("No tienes permiso para revisar incidencias.")
 
@@ -304,9 +305,9 @@ def create_support_ticket(request):
     try:
         payload = json.loads(request.body)
     except (json.JSONDecodeError, UnicodeDecodeError):
-        return JsonResponse({"error": "Solicitud invÃ¡lida."}, status=400)
+        return JsonResponse({"error": "Solicitud inválida."}, status=400)
     if not isinstance(payload, dict):
-        return JsonResponse({"error": "Solicitud invÃ¡lida."}, status=400)
+        return JsonResponse({"error": "Solicitud inválida."}, status=400)
 
     kind = payload.get("tipo")
     code = str(payload.get("codigo", "")).strip().upper()
@@ -319,23 +320,23 @@ def create_support_ticket(request):
         "PROCTOR": r"^SEC-PROCTOR-\d+-\d+$",
     }
     if not isinstance(kind, str) or kind not in patterns or not re.fullmatch(patterns[kind], code):
-        return JsonResponse({"error": "Tipo o cÃ³digo de atenciÃ³n invÃ¡lido."}, status=400)
+        return JsonResponse({"error": "Tipo o código de atención inválido."}, status=400)
     if contact_email:
         from django.core.validators import validate_email
 
         try:
             validate_email(contact_email)
         except ValidationError:
-            return JsonResponse({"error": "El correo no es vÃ¡lido."}, status=400)
+            return JsonResponse({"error": "El correo no es válido."}, status=400)
 
     student = None
     attempt = None
     if kind == "PASS":
         if identification and code != f"SEC-PASS-{identification}":
-            return JsonResponse({"error": "La cÃ©dula no coincide con el cÃ³digo."}, status=400)
+            return JsonResponse({"error": "La cédula no coincide con el código."}, status=400)
         if not identification and not contact_email:
             return JsonResponse(
-                {"error": "Indica una cÃ©dula o correo para localizar la cuenta."},
+                {"error": "Indica una cédula o correo para localizar la cuenta."},
                 status=400,
             )
         if identification:
@@ -358,23 +359,23 @@ def create_support_ticket(request):
     elif kind == "PROCTOR":
         match = re.fullmatch(r"SEC-PROCTOR-(\d+)-(\d+)", code)
         if not match:
-            return JsonResponse({"error": "CÃ³digo de proctoring no vÃ¡lido."}, status=400)
+            return JsonResponse({"error": "Código de proctoring no válido."}, status=400)
         attempt_id, _incident_id = match.groups()
         attempt = Attempt.objects.filter(pk=attempt_id).first()
         if attempt is None:
-            return JsonResponse({"error": "No se encontrÃ³ el intento asociado a la incidencia."}, status=404)
+            return JsonResponse({"error": "No se encontró el intento asociado a la incidencia."}, status=404)
         student = attempt.student
     else:
         if not request.user.is_authenticated or request.user.rol != User.Role.STUDENT:
-            return JsonResponse({"error": "Debes iniciar sesiÃ³n como estudiante."}, status=403)
+            return JsonResponse({"error": "Debes iniciar sesión como estudiante."}, status=403)
         match = re.fullmatch(r"SEC-EXAM-(\d+)-(\d{6,40})", code)
         exam_id, code_identification = match.groups()
         attempt_id = str(payload.get("intento_id", ""))
         if not attempt_id.isdecimal():
-            return JsonResponse({"error": "El intento indicado no es vÃ¡lido."}, status=400)
+            return JsonResponse({"error": "El intento indicado no es válido."}, status=400)
         student_identification = re.sub(r"\D", "", request.user.identification)
         if code_identification != student_identification:
-            return JsonResponse({"error": "La cÃ©dula del cÃ³digo no coincide."}, status=400)
+            return JsonResponse({"error": "La cédula del código no coincide."}, status=400)
         attempt = Attempt.objects.filter(
             pk=attempt_id,
             exam_id=exam_id,
@@ -427,7 +428,7 @@ def ticket_attention(request):
         if already_resolved:
             messages.warning(request, "Ese ticket ya fue resuelto.")
             return redirect("dashboard")
-        messages.error(request, "No se encontrÃ³ un ticket pendiente con ese cÃ³digo.")
+        messages.error(request, "No se encontró un ticket pendiente con ese código.")
         return redirect("dashboard")
 
     if ticket.tipo == TicketAtencion.Tipo.PASSWORD:
@@ -444,7 +445,7 @@ def ticket_attention(request):
                 rol=User.Role.STUDENT,
             ).first()
         if student is None:
-            messages.error(request, "No se encontrÃ³ la cuenta. Verifica la cÃ©dula o correo.")
+            messages.error(request, "No se encontró la cuenta. Verifica la cédula o correo.")
             return redirect("dashboard")
         ticket.estudiante = student
         ticket.save(update_fields=["estudiante"])
@@ -469,7 +470,7 @@ def ticket_attention(request):
                 student__identification=identification,
             ).first()
     if attempt is None:
-        messages.error(request, "No se encontrÃ³ un intento asociado a ese ticket.")
+        messages.error(request, "No se encontró un intento asociado a ese ticket.")
         return redirect("dashboard")
     ticket.intento = attempt
     ticket.estudiante = attempt.student
@@ -537,7 +538,7 @@ def ticket_user_info(request, ticket_id):
 @require_POST
 def admin_toggle_parcial(request):
     if not (request.user.rol == User.Role.ADMINISTRATOR or request.user.is_superuser):
-        return HttpResponseForbidden("Solo los administradores pueden gestionar la finalizaciÃ³n y apertura de parciales.")
+        return HttpResponseForbidden("Solo los administradores pueden gestionar la finalización y apertura de parciales.")
 
     trimestre = request.POST.get("trimestre")
     parcial = request.POST.get("parcial")
@@ -547,10 +548,10 @@ def admin_toggle_parcial(request):
         trim_num = int(trimestre)
         parc_num = int(parcial)
         if trim_num not in (1, 2, 3) or parc_num not in (1, 2):
-            messages.error(request, "Trimestre o parcial no vÃ¡lido.")
+            messages.error(request, "Trimestre o parcial no válido.")
             return redirect("administracion")
     except (ValueError, TypeError):
-        messages.error(request, "Valores de periodo no vÃ¡lidos.")
+        messages.error(request, "Valores de periodo no válidos.")
         return redirect("administracion")
 
     control, _ = ControlParcial.objects.get_or_create(
@@ -594,11 +595,11 @@ def admin_toggle_aprobacion_evaluacion(request, exam_id):
     if accion == "aprobar":
         exam.aprobada = True
         exam.save(update_fields=["aprobada", "updated_at"])
-        messages.success(request, f'La evaluaciÃ³n "{exam.title}" ha sido APROBADA por el administrador.')
+        messages.success(request, f'La evaluación "{exam.title}" ha sido APROBADA por el administrador.')
     elif accion == "desaprobar":
         exam.aprobada = False
         exam.save(update_fields=["aprobada", "updated_at"])
-        messages.info(request, f'La evaluaciÃ³n "{exam.title}" ha sido marcada como PENDIENTE de aprobaciÃ³n.')
+        messages.info(request, f'La evaluación "{exam.title}" ha sido marcada como PENDIENTE de aprobación.')
     next_url = request.POST.get("next") or request.META.get("HTTP_REFERER")
     if next_url:
         return redirect(next_url)
@@ -616,7 +617,7 @@ def dashboard(request):
         )
         cursos_todos = sorted(Curso.objects.all(), key=course_sort_key)
 
-        # 1. AuditorÃ­a de Calificaciones por Curso
+        # 1. Auditoría de Calificaciones por Curso
         cursos_calificaciones = []
         for c in cursos_todos:
             estudiantes = list(c.estudiantes.filter(is_active=True).order_by("last_name", "first_name"))
@@ -656,7 +657,7 @@ def dashboard(request):
                 "materias": materias_curso,
             })
 
-        # 2. AuditorÃ­a de Tareas por Curso
+        # 2. Auditoría de Tareas por Curso
         cursos_tareas = []
         for c in cursos_todos:
             tareas_curso = list(
@@ -689,7 +690,7 @@ def dashboard(request):
                 "total_alumnos": total_alumnos,
             })
 
-        # 3. SupervisiÃ³n de MensajerÃ­a / Comunicados por Curso
+        # 3. Supervisión de Mensajería / Comunicados por Curso
         cursos_mensajes = []
         for c in cursos_todos:
             mensajes_curso = list(
@@ -712,7 +713,7 @@ def dashboard(request):
                 "total_mensajes": len(mensajes_curso),
             })
 
-        # 4. RevisiÃ³n de Evaluaciones Agrupadas por Curso (Admin)
+        # 4. Revisión de Evaluaciones Agrupadas por Curso (Admin)
         umbral_nueva = timezone.now() - timedelta(days=7)
         cursos_evaluaciones = []
         for c in cursos_todos:
@@ -831,11 +832,11 @@ def dashboard(request):
 @login_required
 def exam_edit(request, exam_id=None):
     if request.user.rol != User.Role.TEACHER:
-        messages.warning(request, "Los administradores supervisan y auditan las evaluaciones; su creaciÃ³n y ediciÃ³n corresponde a los docentes.")
+        messages.warning(request, "Los administradores supervisan y auditan las evaluaciones; su creación y edición corresponde a los docentes.")
         return redirect("administracion")
     exam = get_object_or_404(Exam, pk=exam_id, teacher=request.user) if exam_id else None
     if exam and exam.attempts.exists():
-        messages.error(request, "Esta evaluaciÃ³n ya tiene intentos y no se puede modificar.")
+        messages.error(request, "Esta evaluación ya tiene intentos y no se puede modificar.")
         return redirect("dashboard")
     questions = list(exam.questions.prefetch_related("options")) if exam else []
     if request.method == "POST":
@@ -870,7 +871,7 @@ def exam_edit(request, exam_id=None):
                         )
                         for option_position, option in enumerate(question_data["options"], start=1)
                     ])
-            messages.success(request, "La evaluaciÃ³n se guardÃ³ correctamente.")
+            messages.success(request, "La evaluación se guardó correctamente.")
             return redirect("dashboard")
     else:
         form = ExamForm(instance=exam, docente=request.user)
@@ -908,18 +909,18 @@ def validate_question_data(data):
     if not isinstance(data, list) or not data:
         raise ValueError("Agrega al menos una pregunta.")
     if len(data) > 100:
-        raise ValueError("Una evaluaciÃ³n admite hasta 100 preguntas.")
+        raise ValueError("Una evaluación admite hasta 100 preguntas.")
     validated = []
     for question in data:
         if not isinstance(question, dict):
-            raise ValueError("Formato de pregunta invÃ¡lido.")
+            raise ValueError("Formato de pregunta inválido.")
         text = str(question.get("text", "")).strip()
         if not text or len(text) > 5000:
             raise ValueError("Cada pregunta requiere texto de hasta 5000 caracteres.")
         try:
             points = Decimal(str(question.get("points", "1")))
         except InvalidOperation as error:
-            raise ValueError("El puntaje debe ser numÃ©rico.") from error
+            raise ValueError("El puntaje debe ser numérico.") from error
         if not points.is_finite() or points <= 0 or points > 99999:
             raise ValueError("El puntaje debe ser mayor que cero y menor que 100000.")
         options = question.get("options")
@@ -928,10 +929,10 @@ def validate_question_data(data):
         clean_options = []
         for option in options:
             if not isinstance(option, dict):
-                raise ValueError("Formato de opciÃ³n invÃ¡lido.")
+                raise ValueError("Formato de opción inválido.")
             option_text = str(option.get("text", "")).strip()
             if not option_text or len(option_text) > 1000:
-                raise ValueError("Cada opciÃ³n requiere texto de hasta 1000 caracteres.")
+                raise ValueError("Cada opción requiere texto de hasta 1000 caracteres.")
             clean_options.append({"text": option_text, "correct": option.get("correct") is True})
         if sum(option["correct"] for option in clean_options) != 1:
             raise ValueError("Cada pregunta debe tener exactamente una respuesta correcta.")
@@ -946,10 +947,10 @@ def exam_delete(request, exam_id):
         raise Http404
     exam = get_object_or_404(Exam, pk=exam_id, teacher=request.user)
     if exam.attempts.exists():
-        messages.error(request, "No se puede eliminar una evaluaciÃ³n que ya tiene intentos.")
+        messages.error(request, "No se puede eliminar una evaluación que ya tiene intentos.")
     else:
         exam.delete()
-        messages.success(request, "La evaluaciÃ³n fue eliminada.")
+        messages.success(request, "La evaluación fue eliminada.")
     return redirect("dashboard")
 
 
@@ -979,15 +980,15 @@ def exam_launch(request, exam_id):
     now = timezone.now()
     launch_error = None
     if not exam.published:
-        launch_error = "Esta evaluaciÃ³n todavÃ­a no ha sido publicada."
+        launch_error = "Esta evaluación todavía no ha sido publicada."
     elif not exam.aprobada:
-        launch_error = "Esta evaluaciÃ³n se encuentra en revisiÃ³n y estÃ¡ pendiente de aprobaciÃ³n por la administraciÃ³n."
+        launch_error = "Esta evaluación se encuentra en revisión y está pendiente de aprobación por la administración."
     elif not exam.is_assigned_to_student(request.user):
-        launch_error = "Esta evaluaciÃ³n no estÃ¡ asignada a tu curso ni a tu usuario."
+        launch_error = "Esta evaluación no está asignada a tu curso ni a tu usuario."
     elif now < exam.available_from:
-        launch_error = "La evaluaciÃ³n todavÃ­a no estÃ¡ disponible."
+        launch_error = "La evaluación todavía no está disponible."
     elif exam.available_until and now >= exam.available_until:
-        launch_error = "El perÃ­odo disponible para esta evaluaciÃ³n terminÃ³."
+        launch_error = "El período disponible para esta evaluación terminó."
     return render(
         request,
         "estudiante/launch.html",
@@ -1038,12 +1039,12 @@ def report_download(request, attempt_id):
     if not can_access:
         messages.error(
             request,
-            "No tienes permiso para descargar este informe o los resultados aÃºn no estÃ¡n disponibles.",
+            "No tienes permiso para descargar este informe o los resultados aún no están disponibles.",
         )
         return redirect("dashboard")
 
-    # Con la detecciÃ³n de IPs cercanas activa el PDF se genera en cada descarga: asÃ­
-    # incluye a quienes rindieron despuÃ©s y el estudiante nunca ve datos de otros.
+    # Con la detección de IPs cercanas activa el PDF se genera en cada descarga: así
+    # incluye a quienes rindieron después y el estudiante nunca ve datos de otros.
     if attempt.exam.detect_nearby_ips:
         try:
             from apps.reportes.services import build_pdf

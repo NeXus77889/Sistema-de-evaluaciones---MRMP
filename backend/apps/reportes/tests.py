@@ -1,9 +1,10 @@
-﻿import tempfile
+import tempfile
 from unittest.mock import ANY, patch
 
 from django.core import mail
 from django.test import TestCase, override_settings
-from django.urls import reversefrom django.utils import timezone
+from django.urls import reverse
+from django.utils import timezone
 
 from apps.evaluaciones.models import AsignacionDocente, Curso, Exam, Materia
 from apps.intentos.models import Attempt

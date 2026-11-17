@@ -1,7 +1,22 @@
-﻿from decimal import Decimal
+from decimal import Decimal
 
 from django.db import transaction
-from django.db.models import Sum    answers = Answer.objects.filter(attempt=attempt).select_related("question", "selected_option")
+from django.db.models import Sum
+from django.utils import timezone
+
+from apps.evaluaciones.models import Option
+from apps.monitoreo.services import assess_attempt
+from apps.intentos.models import Answer, Attempt
+
+
+@transaction.atomic
+def finish_attempt(attempt_id):
+    attempt = Attempt.objects.select_for_update().select_related("exam").get(pk=attempt_id)
+    if attempt.status == Attempt.Status.SUBMITTED:
+        return attempt, False
+
+    earned_points = Decimal("0")
+    answers = Answer.objects.filter(attempt=attempt).select_related("question", "selected_option")
     for answer in answers:
         if (
             answer.selected_option_id
@@ -12,7 +27,8 @@ from django.db.models import Sum    answers = Answer.objects.filter(attempt=atte
     total_points = attempt.exam.questions.aggregate(total=Sum("points"))["total"] or Decimal("0")
     percentage = (
         earned_points * Decimal("100") / total_points
-        if total_points        else Decimal("0")
+        if total_points
+        else Decimal("0")
     )
     assessment = assess_attempt(attempt)
     attempt.score = earned_points.quantize(Decimal("0.01"))
@@ -38,9 +54,9 @@ from django.db.models import Sum    answers = Answer.objects.filter(attempt=atte
 
 def record_answer(attempt, question, option):
     if option.question_id != question.pk:
-        raise ValueError("La opciÃ³n no pertenece a esta pregunta.")
+        raise ValueError("La opción no pertenece a esta pregunta.")
     if not Option.objects.filter(pk=option.pk, question=question).exists():
-        raise ValueError("OpciÃ³n no vÃ¡lida.")
+        raise ValueError("Opción no válida.")
     return Answer.objects.update_or_create(
         attempt=attempt,
         question=question,

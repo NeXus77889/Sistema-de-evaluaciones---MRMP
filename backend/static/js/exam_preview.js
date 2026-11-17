@@ -1,4 +1,4 @@
-﻿document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("#exam-form");
   if (!form) return;
 
@@ -19,11 +19,12 @@
   const selectedLabel = (field) => field?.selectedOptions[0]?.textContent.trim() || "Sin seleccionar";
 
   const updatePreview = () => {
-    previewTitle.textContent = title?.value.trim() || "Nueva evaluaciÃ³n";
+    previewTitle.textContent = title?.value.trim() || "Nueva evaluación";
     previewSubject.textContent = selectedLabel(subject);
     previewPeriod.textContent = trimester?.value
-      ? `${selectedLabel(trimester)} Â· ${selectedLabel(partial)}`
-      : "Sin seleccionar";    previewDuration.textContent = duration?.value || "0";
+      ? `${selectedLabel(trimester)} · ${selectedLabel(partial)}`
+      : "Sin seleccionar";
+    previewDuration.textContent = duration?.value || "0";
     const selected = [...form.querySelectorAll('[name="cursos"]:checked')]
       .map((checkbox) => checkbox.closest("label")?.textContent.trim())
       .filter(Boolean);
@@ -38,3 +39,13 @@
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
     }).format(points);
+  };
+
+  form.addEventListener("input", updatePreview);
+  form.addEventListener("change", updatePreview);
+  questionList?.addEventListener("click", updatePreview);
+  if (questionList) {
+    new MutationObserver(updatePreview).observe(questionList, { childList: true, subtree: true });
+  }
+  updatePreview();
+});

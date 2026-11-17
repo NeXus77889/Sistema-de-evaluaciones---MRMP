@@ -1,5 +1,19 @@
-﻿import logging
-import randomfrom apps.core.models import TicketAtencion
+import logging
+import random
+from django.db import transaction
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import serializers, status
+from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
+from apps.evaluaciones.models import Exam, Option, Question
+from apps.intentos.models import NON_STRIKE_KINDS, Answer, Attempt, Incident, strike_incidents
+from apps.intentos.services import finish_attempt
+from apps.monitoreo.network import get_client_ip
+from apps.core.models import TicketAtencion
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +41,7 @@ def require_active(attempt):
         finished, changed = finish_attempt(attempt.pk)
         if changed:
             create_report_safely(finished)
-        raise ValidationError("El tiempo terminÃ³ y el intento fue entregado automÃ¡ticamente.")
+        raise ValidationError("El tiempo terminó y el intento fue entregado automáticamente.")
 
 
 def create_report_safely(attempt):
@@ -42,8 +56,8 @@ def create_report_safely(attempt):
 def ordered_questions(attempt):
     """Preguntas del intento, con opciones en `ordered_options`.
 
-    Si la evaluaciÃ³n tiene orden aleatorio, la mezcla es distinta para cada intento pero
-    estable: se genera con una semilla fija, asÃ­ que al recargar el estudiante ve lo mismo.
+    Si la evaluación tiene orden aleatorio, la mezcla es distinta para cada intento pero
+    estable: se genera con una semilla fija, así que al recargar el estudiante ve lo mismo.
     """
     questions = list(attempt.exam.questions.prefetch_related("options").all())
     for question in questions:
@@ -55,11 +69,42 @@ def ordered_questions(attempt):
             rng.shuffle(question.ordered_options)
     return questions
 
+
+class StartAttemptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, exam_id):
+        require_student(request.user)
+        now = timezone.now()
+        exam = get_object_or_404(Exam, pk=exam_id, published=True)
+        if not exam.is_assigned_to_student(request.user):
+            raise PermissionDenied("Esta evaluación no está asignada a tu usuario.")
+        if now < exam.available_from or (exam.available_until and now >= exam.available_until):
+            raise ValidationError("La evaluación no está disponible en este momento.")
+        if not exam.questions.exists():
+            raise ValidationError("La evaluación todavía no tiene preguntas.")
+        for question in exam.questions.prefetch_related("options"):
+            options = list(question.options.all())
+            if len(options) < 2 or sum(option.is_correct for option in options) != 1:
+                raise ValidationError("La evaluación contiene una pregunta incompleta.")
+
+        # La IP solo se registra si el docente activó la detección en esta evaluación.
+        client_ip = get_client_ip(request) if exam.detect_nearby_ips else None
+        attempt, created = Attempt.objects.get_or_create(
+            exam=exam,
+            student=request.user,
+            defaults={"started_at": now, "ip_address": client_ip},
+        )
+        if attempt.status == Attempt.Status.SUBMITTED:
+            raise ValidationError("Ya existe un intento entregado para esta evaluación.")
+        if client_ip and not attempt.ip_address:
+            attempt.ip_address = client_ip
+            attempt.save(update_fields=["ip_address"])
         if timezone.now() >= attempt.deadline:
             finished, changed = finish_attempt(attempt.pk)
             if changed:
                 create_report_safely(finished)
-            raise ValidationError("El tiempo de este intento ya terminÃ³.")
+            raise ValidationError("El tiempo de este intento ya terminó.")
         if created:
             attempt.refresh_from_db()
         return Response(
@@ -84,7 +129,8 @@ class AttemptStateView(APIView):
             attempt, changed = finish_attempt(attempt.pk)
             if changed:
                 create_report_safely(attempt)
-        questions = ordered_questions(attempt)        saved = dict(
+        questions = ordered_questions(attempt)
+        saved = dict(
             Answer.objects.filter(attempt=attempt).values_list("question_id", "selected_option_id")
         )
         return Response(
@@ -100,7 +146,8 @@ class AttemptStateView(APIView):
                         "position": question.position,
                         "options": [
                             {"id": option.pk, "text": option.text, "position": option.position}
-                            for option in question.ordered_options                        ],
+                            for option in question.ordered_options
+                        ],
                         "selected_option_id": saved.get(question.pk),
                     }
                     for question in questions
@@ -117,7 +164,8 @@ class AttemptIncidentCountView(APIView):
         attempt = get_object_or_404(Attempt, pk=attempt_id, student=request.user)
         return Response({
             "attempt_id": attempt.pk,
-            "incident_count": strike_incidents(attempt).count(),            "incident_limit": 3,
+            "incident_count": strike_incidents(attempt).count(),
+            "incident_limit": 3,
             "status": attempt.status,
         })
 
@@ -181,11 +229,24 @@ class RecordIncidentView(APIView):
                             "creado_por": request.user,
                         },
                     )
-                focus_count = strike_incidents(attempt).count()                return Response(
+                focus_count = strike_incidents(attempt).count()
+                return Response(
                     {
                         "received": True,
                         "duplicate": True,
-                        "counts_as_strike": counts_as_strike,            else Incident.Severity.MEDIUM
+                        "counts_as_strike": counts_as_strike,
+                        "focus_offense_count": focus_count,
+                        "incident_count": focus_count,
+                        "auto_submitted": False,
+                        "security_ticket_code": ticket_code,
+                    },
+                    status=status.HTTP_200_OK,
+                )
+        require_active(attempt)
+        severity = (
+            Incident.Severity.HIGH
+            if kind in {Incident.Kind.CAMERA_LOST, Incident.Kind.MICROPHONE_LOST, Incident.Kind.PHONE_DETECTED}
+            else Incident.Severity.MEDIUM
         )
         incident_values = {
             "attempt": attempt,
@@ -218,7 +279,8 @@ class RecordIncidentView(APIView):
                 },
             )
         auto_submitted = False
-        focus_offense_count = strike_incidents(attempt).count()        if focus_offense_count >= 3 and attempt.status == Attempt.Status.IN_PROGRESS:
+        focus_offense_count = strike_incidents(attempt).count()
+        if focus_offense_count >= 3 and attempt.status == Attempt.Status.IN_PROGRESS:
             finished, auto_submitted = finish_attempt(attempt.pk)
             if auto_submitted:
                 create_report_safely(finished)

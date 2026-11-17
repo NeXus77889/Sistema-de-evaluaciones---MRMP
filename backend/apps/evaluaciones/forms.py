@@ -1,4 +1,4 @@
-﻿from django import forms
+from django import forms
 from django.contrib.auth import get_user_model
 
 # pyrefly: ignore[missing-import]
@@ -26,7 +26,7 @@ class ExamForm(forms.ModelForm):
         queryset=Curso.objects.all(),
         required=False,
         label="Cursos destino",
-        help_text="Selecciona uno o varios cursos; el examen estarÃ¡ disponible en todos.",
+        help_text="Selecciona uno o varios cursos; el examen estará disponible en todos.",
         widget=GroupedCourseCheckboxSelectMultiple,
     )
 
@@ -61,8 +61,8 @@ class ExamForm(forms.ModelForm):
             self.fields["cursos"].queryset = assigned_courses
             if not assignments.exists():
                 self.assignment_notice = (
-                    "No tienes asignaciones activas. Solicita a SecretarÃ­a "
-                    "la asignaciÃ³n de materias y cursos."
+                    "No tienes asignaciones activas. Solicita a Secretaría "
+                    "la asignación de materias y cursos."
                 )
 
             if self.is_bound:
@@ -101,9 +101,21 @@ class ExamForm(forms.ModelForm):
         )
         self.fields["trimestre"].required = True
         self.fields["parcial"].required = True
-        self.fields["parcial"].choices = [(1, "Primer parcial Â· evaluaciÃ³n en lÃ­nea")]
+        self.fields["parcial"].choices = [(1, "Primer parcial · evaluación en línea")]
         if not self.instance.parcial:
-            self.fields["parcial"].initial = 1        cursos = list(cleaned_data.get("cursos", ()))
+            self.fields["parcial"].initial = 1
+        if self.instance.pk:
+            initial_courses = list(self.instance.cursos.values_list("pk", flat=True))
+            if self.instance.curso_id and self.instance.curso_id not in initial_courses:
+                initial_courses.append(self.instance.curso_id)
+            self.fields["cursos"].initial = initial_courses
+
+    def clean(self):
+        cleaned_data = super().clean()
+        materia = cleaned_data.get("materia")
+        trimestre = cleaned_data.get("trimestre")
+        parcial = cleaned_data.get("parcial")
+        cursos = list(cleaned_data.get("cursos", ()))
         curso = cursos[0] if cursos else cleaned_data.get("curso")
         if curso and not cursos:
             cursos = [curso]
@@ -114,9 +126,47 @@ class ExamForm(forms.ModelForm):
         else:
             self.add_error("cursos", "Selecciona al menos un curso destino.")
         if not trimestre:
-            self.add_error("trimestre", "Selecciona el trimestre de la evaluaciÃ³n.")
+            self.add_error("trimestre", "Selecciona el trimestre de la evaluación.")
         if parcial != 1:
-            self.add_error("parcial", "Las evaluaciones en lÃ­nea corresponden al primer parcial.")            "curso",
+            self.add_error("parcial", "Las evaluaciones en línea corresponden al primer parcial.")
+        if (
+            self.docente
+            and self.docente.rol == User.Role.TEACHER
+            and materia
+            and curso
+            and not AsignacionDocente.objects.filter(
+            docente=self.docente,
+            materia=materia,
+            curso=curso,
+            activo=True,
+            ).exists()
+        ):
+            self.add_error("curso", "No tienes asignada esa materia en el curso seleccionado.")
+        if self.docente and self.docente.rol == User.Role.TEACHER and materia:
+            unassigned_courses = [
+                course
+                for course in cursos
+                if not AsignacionDocente.objects.filter(
+                    docente=self.docente,
+                    materia=materia,
+                    curso=course,
+                    activo=True,
+                ).exists()
+            ]
+            if unassigned_courses:
+                self.add_error(
+                    "cursos",
+                    "No tienes asignadas todas las materias y cursos seleccionados.",
+                )
+        return cleaned_data
+
+    class Meta:
+        model = Exam
+        fields = [
+            "materia",
+            "trimestre",
+            "parcial",
+            "curso",
             "cursos",
             "title",
             "description",
@@ -127,7 +177,20 @@ class ExamForm(forms.ModelForm):
             "results_visible",
             "detect_nearby_ips",
             "camera_ai_detection",
-            "randomize_order",            "students": forms.SelectMultiple(attrs={"size": 6}),
+            "randomize_order",
+            "students",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"rows": 3}),
+            "available_from": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
+            "available_until": forms.DateTimeInput(
+                attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
+            ),
+            "trimestre": forms.Select(),
+            "parcial": forms.Select(),
+            "students": forms.SelectMultiple(attrs={"size": 6}),
         }
 
 
@@ -203,7 +266,7 @@ class CalificarEntregaForm(forms.ModelForm):
         fields = ["calificacion", "retroalimentacion"]
         widgets = {
             "calificacion": forms.NumberInput(attrs={"step": "0.01", "min": "0", "max": "10"}),
-            "retroalimentacion": forms.Textarea(attrs={"rows": 3, "placeholder": "Observaciones y retroalimentaciÃ³n institucional..."}),
+            "retroalimentacion": forms.Textarea(attrs={"rows": 3, "placeholder": "Observaciones y retroalimentación institucional..."}),
         }
 
 
