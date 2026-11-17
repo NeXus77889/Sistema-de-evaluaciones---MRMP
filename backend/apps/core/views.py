@@ -12,8 +12,8 @@ from django.contrib.auth.views import PasswordChangeView
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch, Q
 from django.db import transaction
-from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, JsonResponsefrom django.shortcuts import get_object_or_404, redirect, render
-from django.urls import reverse, reverse_lazy
+from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, JsonResponse
+from django.shortcuts import get_object_or_404, redirect, renderfrom django.urls import reverse, reverse_lazy
 from django.utils import timezone
 from django.views.decorators.http import require_http_methods, require_POST
 
