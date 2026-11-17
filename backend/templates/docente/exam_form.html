@@ -1,6 +1,6 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 {% load static %}
-{% block title %}{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}{% endblock %}
+{% block title %}{% if exam %}Editar evaluaciÃ³n{% else %}Nueva evaluaciÃ³n{% endif %}{% endblock %}
 
 {% block extra_head %}
 <style>
@@ -117,8 +117,8 @@
 {% block content %}
 <div class="page-heading">
   <div>
-    <span class="eyebrow">Diseño de prueba</span>
-    <h1>{% if exam %}Editar evaluación{% else %}Nueva evaluación{% endif %}</h1>
+    <span class="eyebrow">DiseÃ±o de prueba</span>
+    <h1>{% if exam %}Editar evaluaciÃ³n{% else %}Nueva evaluaciÃ³n{% endif %}</h1>
     <p>Organiza los datos generales, disponibilidad y proctoring, y banco de preguntas.</p>
   </div>
   <a class="button button-outline" href="{% url 'dashboard' %}">Volver</a>
@@ -137,20 +137,20 @@
     <p class="assignment-notice" role="status">{{ form.assignment_notice }}</p>
   {% endif %}
 
-  <!-- SECCIÓN 1: DATOS GENERALES -->
+  <!-- SECCIÃ“N 1: DATOS GENERALES -->
   <section class="form-section">
     <div class="section-heading">
       <div>
-        <span class="eyebrow">Sección 1</span>
+        <span class="eyebrow">SecciÃ³n 1</span>
         <h2>Datos generales</h2>
-        <p>Título, asignatura asignada y cursos o paralelos que rendirán la evaluación.</p>
+        <p>TÃ­tulo, asignatura asignada y cursos o paralelos que rendirÃ¡n la evaluaciÃ³n.</p>
       </div>
     </div>
     <div style="padding: 1.25rem 1.5rem;">
       <div class="editor-grid-container">
-        <!-- Título -->
+        <!-- TÃ­tulo -->
         <div class="form-card-field col-full">
-          <label for="{{ form.title.id_for_label }}">Título de la evaluación *</label>
+          <label for="{{ form.title.id_for_label }}">TÃ­tulo de la evaluaciÃ³n *</label>
           {{ form.title }}
           {% if form.title.help_text %}<p class="field-help">{{ form.title.help_text }}</p>{% endif %}
           {% if form.title.errors %}<div class="field-error">{{ form.title.errors }}</div>{% endif %}
@@ -164,138 +164,26 @@
           {% if form.materia.errors %}<div class="field-error">{{ form.materia.errors }}</div>{% endif %}
         </div>
 
-<<<<<<< HEAD
         <div class="form-card-field">
-          <label for="{{ form.trimestre.id_for_label }}">Trimestre de calificación *</label>
+          <label for="{{ form.trimestre.id_for_label }}">Trimestre de calificaciÃ³n *</label>
           {{ form.trimestre }}
-          <p class="field-help">La nota se asignará a este trimestre.</p>
+          <p class="field-help">La nota se asignarÃ¡ a este trimestre.</p>
           {% if form.trimestre.errors %}<div class="field-error">{{ form.trimestre.errors }}</div>{% endif %}
         </div>
 
         <div class="form-card-field">
           <label for="{{ form.parcial.id_for_label }}">Parcial *</label>
           {{ form.parcial }}
-          <p class="field-help">Las evaluaciones en línea cuentan como insumo del primer parcial (20%).</p>
+          <p class="field-help">Las evaluaciones en lÃ­nea cuentan como insumo del primer parcial (20%).</p>
           {% if form.parcial.errors %}<div class="field-error">{{ form.parcial.errors }}</div>{% endif %}
         </div>
-
-=======
->>>>>>> master
-        <!-- Campo oculto curso base -->
-        <div style="display: none;">
-          {{ form.curso }}
-        </div>
-
-        <!-- Cursos M2M agrupados -->
-        <div class="form-card-field col-full">
-          <label>{{ form.cursos.label }}</label>
-          {{ form.cursos }}
-          {% if form.cursos.help_text %}<p class="field-help">{{ form.cursos.help_text }}</p>{% endif %}
-          {% if form.cursos.errors %}<div class="field-error">{{ form.cursos.errors }}</div>{% endif %}
-        </div>
-
-        <!-- Descripción / Instrucciones -->
-        <div class="form-card-field col-full">
-          <label for="{{ form.description.id_for_label }}">Descripción o instrucciones</label>
-          {{ form.description }}
-          {% if form.description.help_text %}<p class="field-help">{{ form.description.help_text }}</p>{% endif %}
-          {% if form.description.errors %}<div class="field-error">{{ form.description.errors }}</div>{% endif %}
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SECCIÓN 2: FECHAS Y DURACIÓN -->
-  <section class="form-section">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Sección 2</span>
-        <h2>Fechas y duración</h2>
-        <p>Configura el tiempo límite y la ventana de disponibilidad de la prueba.</p>
-      </div>
-    </div>
-    <div style="padding: 1.25rem 1.5rem;">
-      <div class="editor-grid-container">
-        <!-- Duración en minutos -->
-        <div class="form-card-field col-full">
-          <label for="{{ form.duration_minutes.id_for_label }}">Duración límite (en minutos) *</label>
-          {{ form.duration_minutes }}
-          {% if form.duration_minutes.help_text %}<p class="field-help">{{ form.duration_minutes.help_text }}</p>{% endif %}
-          {% if form.duration_minutes.errors %}<div class="field-error">{{ form.duration_minutes.errors }}</div>{% endif %}
-        </div>
-
-        <!-- Disponible desde -->
-        <div class="form-card-field">
-          <label for="{{ form.available_from.id_for_label }}">Disponible desde (Fecha y hora) *</label>
-          {{ form.available_from }}
-          {% if form.available_from.help_text %}<p class="field-help">{{ form.available_from.help_text }}</p>{% endif %}
-          {% if form.available_from.errors %}<div class="field-error">{{ form.available_from.errors }}</div>{% endif %}
-        </div>
-
-        <!-- Disponible hasta -->
-        <div class="form-card-field">
-          <label for="{{ form.available_until.id_for_label }}">Disponible hasta (Fecha y hora)</label>
-          {{ form.available_until }}
-          {% if form.available_until.help_text %}<p class="field-help">{{ form.available_until.help_text }}</p>{% endif %}
-          {% if form.available_until.errors %}<div class="field-error">{{ form.available_until.errors }}</div>{% endif %}
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- SECCIÓN 3: CONFIGURACIÓN Y PROCTORING -->
-  <section class="form-section">
-    <div class="section-heading">
-      <div>
-        <span class="eyebrow">Sección 3</span>
-        <h2>Configuración y proctoring</h2>
-        <p>Visibilidad, estado de publicación y supervisión de la prueba.</p>
-      </div>
-    </div>
-    <div style="padding: 1.25rem 1.5rem;">
-      <div class="editor-grid-container">
-        <!-- Opciones de publicación y resultados -->
-        <div class="form-card-field col-full">
-          <div class="checkbox-row-wrapper">
-            <label class="checkbox-inline-label" for="{{ form.published.id_for_label }}">
-              {{ form.published }}
-              <span>Publicar evaluación (los estudiantes la verán en su panel en las fechas fijadas)</span>
-            </label>
-            {% if form.published.errors %}<div class="field-error">{{ form.published.errors }}</div>{% endif %}
-
-            <label class="checkbox-inline-label" for="{{ form.results_visible.id_for_label }}">
-              {{ form.results_visible }}
-              <span>Mostrar resultados al estudiante al finalizar la prueba</span>
-            </label>
-            {% if form.results_visible.errors %}<div class="field-error">{{ form.results_visible.errors }}</div>{% endif %}
-<<<<<<< HEAD
-
-            <label class="checkbox-inline-label" for="{{ form.detect_nearby_ips.id_for_label }}">
-              {{ form.detect_nearby_ips }}
-              <span>Detectar IPs cercanas: registrar la IP de cada estudiante y mostrar en el informe PDF quiénes rindieron desde la misma IP o red</span>
-            </label>
-            {% if form.detect_nearby_ips.errors %}<div class="field-error">{{ form.detect_nearby_ips.errors }}</div>{% endif %}
-
-            <label class="checkbox-inline-label" for="{{ form.camera_ai_detection.id_for_label }}">
-              {{ form.camera_ai_detection }}
-              <span>Detección de teléfono por cámara: el navegador del estudiante analiza la cámara y registra una incidencia si aparece un teléfono o no se ve a la persona (no se guardan imágenes y no cuenta para las 3 infracciones)</span>
-            </label>
-            {% if form.camera_ai_detection.errors %}<div class="field-error">{{ form.camera_ai_detection.errors }}</div>{% endif %}
-
-            <label class="checkbox-inline-label" for="{{ form.randomize_order.id_for_label }}">
-              {{ form.randomize_order }}
-              <span>Orden aleatorio: cada estudiante ve las preguntas y las opciones en un orden distinto</span>
-            </label>
-            {% if form.randomize_order.errors %}<div class="field-error">{{ form.randomize_order.errors }}</div>{% endif %}
-=======
->>>>>>> master
           </div>
         </div>
 
-        <!-- Asignación individual específica de estudiantes (opcional) -->
+        <!-- AsignaciÃ³n individual especÃ­fica de estudiantes (opcional) -->
         {% if form.students %}
         <div class="form-card-field col-full">
-          <label for="{{ form.students.id_for_label }}">{{ form.students.label }} (opcional: dejar vacío para todos los estudiantes de los cursos)</label>
+          <label for="{{ form.students.id_for_label }}">{{ form.students.label }} (opcional: dejar vacÃ­o para todos los estudiantes de los cursos)</label>
           {{ form.students }}
           {% if form.students.help_text %}<p class="field-help">{{ form.students.help_text }}</p>{% endif %}
           {% if form.students.errors %}<div class="field-error">{{ form.students.errors }}</div>{% endif %}
@@ -305,11 +193,11 @@
     </div>
   </section>
 
-  <!-- SECCIÓN 4: BANCO DE PREGUNTAS -->
+  <!-- SECCIÃ“N 4: BANCO DE PREGUNTAS -->
   <section class="form-section">
     <div class="section-heading">
       <div>
-        <span class="eyebrow">Sección 4</span>
+        <span class="eyebrow">SecciÃ³n 4</span>
         <h2>Preguntas</h2>
         <p>Una respuesta correcta por pregunta. Puntajes mayores a cero.</p>
       </div>
@@ -329,32 +217,26 @@
 
   <input type="hidden" name="questions_json" id="questions-json">
 
-  <!-- VISTA PREVIA RÁPIDA -->
-  <section class="exam-preview" aria-live="polite" aria-label="Vista previa de la evaluación">
+  <!-- VISTA PREVIA RÃPIDA -->
+  <section class="exam-preview" aria-live="polite" aria-label="Vista previa de la evaluaciÃ³n">
     <div>
       <span class="eyebrow">Vista previa</span>
-      <h2 id="preview-title">Nueva evaluación</h2>
+      <h2 id="preview-title">Nueva evaluaciÃ³n</h2>
     </div>
     <dl>
       <div><dt>Materia</dt><dd id="preview-subject">Sin seleccionar</dd></div>
-<<<<<<< HEAD
       <div><dt>Periodo</dt><dd id="preview-period">Sin seleccionar</dd></div>
-      <div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div>
+      <div><dt>DuraciÃ³n</dt><dd><span id="preview-duration">0</span> min</dd></div>
       <div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div>
       <div><dt>Preguntas</dt><dd id="preview-question-count">0</dd></div>
-      <div><dt>Puntaje total</dt><dd id="preview-total-points">0</dd></div>
-=======
-      <div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div>
-      <div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div>
->>>>>>> master
-    </dl>
+      <div><dt>Puntaje total</dt><dd id="preview-total-points">0</dd></div>    </dl>
   </section>
 
 
   <!-- BOTONES PRINCIPALES AGRUPADOS -->
   <div class="exam-form-footer">
     <a class="button button-outline" href="{% url 'dashboard' %}">Cancelar</a>
-    <button type="submit" class="button button-primary">Guardar evaluación</button>
+    <button type="submit" class="button button-primary">Guardar evaluaciÃ³n</button>
   </div>
 </form>
 
@@ -365,7 +247,7 @@
     <div>
       <span class="eyebrow">Vista previa</span>
       <h2>Revisa las preguntas importadas</h2>
-      <p>Selecciona una respuesta correcta para cada pregunta antes de añadirlas.</p>
+      <p>Selecciona una respuesta correcta para cada pregunta antes de aÃ±adirlas.</p>
     </div>
     <button type="button" id="close-docx-preview" class="support-ticket-close" aria-label="Cerrar vista previa">Cerrar</button>
   </div>

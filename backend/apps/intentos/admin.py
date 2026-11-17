@@ -1,4 +1,4 @@
-from django.contrib import admin
+﻿from django.contrib import admin
 from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
@@ -49,28 +49,10 @@ class AttemptAdmin(admin.ModelAdmin):
         "suspicion_level",
         "started_at",
         "submitted_at",
-<<<<<<< HEAD
-        "ip_address",
-=======
->>>>>>> master
-        "informe_pdf",
-    )
-    readonly_fields = (
-        "exam",
-        "student",
-        "status",
-        "suspicion_score",
-        "suspicion_level",
-        "started_at",
-        "submitted_at",
-<<<<<<< HEAD
-        "ip_address",
-=======
->>>>>>> master
-        "informe_pdf",
+        "ip_address",        "informe_pdf",
     )
 
-    @admin.display(description="Evaluación", ordering="exam__title")
+    @admin.display(description="EvaluaciÃ³n", ordering="exam__title")
     def exam_title(self, attempt):
         return attempt.exam.title
 
@@ -85,7 +67,7 @@ class AttemptAdmin(admin.ModelAdmin):
     @admin.display(description="Informe PDF")
     def informe_pdf(self, attempt):
         if not attempt or not attempt.pk:
-            return "—"
+            return "â€”"
         url = reverse("report-download", args=[attempt.pk])
         return format_html(
             '<a class="button" href="{}" target="_blank" style="white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;padding:6px 14px;font-size:11px;font-weight:700;line-height:1.2;text-decoration:none;border-radius:8px;">Descargar PDF</a>',
@@ -134,7 +116,7 @@ class IncidentAdmin(admin.ModelAdmin):
         student = incident.attempt.student
         return student.get_full_name() or student.username
 
-    @admin.display(description="Evaluación")
+    @admin.display(description="EvaluaciÃ³n")
     def exam_title(self, incident):
         return incident.attempt.exam.title
 

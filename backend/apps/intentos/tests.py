@@ -1,4 +1,4 @@
-import uuid
+﻿import uuid
 from datetime import timedelta
 from unittest.mock import patch
 
@@ -67,7 +67,6 @@ class AttemptApiTests(TestCase):
         self.assertEqual(response.status_code, 201)
         return response.data["attempt_id"]
 
-<<<<<<< HEAD
     def test_start_records_ip_only_when_exam_enables_detection(self):
         headers = {"HTTP_X_FORWARDED_FOR": "190.10.20.5", "REMOTE_ADDR": "10.0.0.1"}
         with self.settings(CLIENT_IP_PROXY_HOPS=1):
@@ -126,8 +125,6 @@ class AttemptApiTests(TestCase):
         for question in first:
             self.assertEqual(len(question["options"]), 2)
 
-=======
->>>>>>> master
     def test_start_hides_correct_answer_and_other_student_cannot_read_attempt(self):
         attempt_id = self.start_attempt()
         response = self.client.get(reverse("attempt-state", args=[attempt_id]))

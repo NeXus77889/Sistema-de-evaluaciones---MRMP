@@ -1,29 +1,7 @@
-from decimal import Decimal
+﻿from decimal import Decimal
 
 from django.db import transaction
-<<<<<<< HEAD
-from django.db.models import Sum
-=======
->>>>>>> master
-from django.utils import timezone
-
-from apps.evaluaciones.models import Option
-from apps.monitoreo.services import assess_attempt
-from apps.intentos.models import Answer, Attempt
-
-
-@transaction.atomic
-def finish_attempt(attempt_id):
-    attempt = Attempt.objects.select_for_update().select_related("exam").get(pk=attempt_id)
-    if attempt.status == Attempt.Status.SUBMITTED:
-        return attempt, False
-
-    earned_points = Decimal("0")
-<<<<<<< HEAD
-=======
-    correct_count = 0
->>>>>>> master
-    answers = Answer.objects.filter(attempt=attempt).select_related("question", "selected_option")
+from django.db.models import Sum    answers = Answer.objects.filter(attempt=attempt).select_related("question", "selected_option")
     for answer in answers:
         if (
             answer.selected_option_id
@@ -31,19 +9,10 @@ def finish_attempt(attempt_id):
             and answer.selected_option.is_correct
         ):
             earned_points += answer.question.points
-<<<<<<< HEAD
     total_points = attempt.exam.questions.aggregate(total=Sum("points"))["total"] or Decimal("0")
     percentage = (
         earned_points * Decimal("100") / total_points
-        if total_points
-=======
-            correct_count += 1
-    question_count = attempt.exam.questions.count()
-    percentage = (
-        Decimal(correct_count) * Decimal("100") / question_count
-        if question_count
->>>>>>> master
-        else Decimal("0")
+        if total_points        else Decimal("0")
     )
     assessment = assess_attempt(attempt)
     attempt.score = earned_points.quantize(Decimal("0.01"))
@@ -62,19 +31,16 @@ def finish_attempt(attempt_id):
             "submitted_at",
         ]
     )
-<<<<<<< HEAD
     from apps.evaluaciones.grading import sync_online_exam_attempt
 
     sync_online_exam_attempt(attempt)
-=======
->>>>>>> master
     return attempt, True
 
 def record_answer(attempt, question, option):
     if option.question_id != question.pk:
-        raise ValueError("La opción no pertenece a esta pregunta.")
+        raise ValueError("La opciÃ³n no pertenece a esta pregunta.")
     if not Option.objects.filter(pk=option.pk, question=question).exists():
-        raise ValueError("Opción no válida.")
+        raise ValueError("OpciÃ³n no vÃ¡lida.")
     return Answer.objects.update_or_create(
         attempt=attempt,
         question=question,

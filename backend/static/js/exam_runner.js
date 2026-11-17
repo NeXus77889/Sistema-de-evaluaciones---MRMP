@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   const preflight = document.querySelector("#preflight");
   if (!preflight) return;
 
@@ -28,89 +28,20 @@
   let incidentPollHandle;
   let incidentPollBusy = false;
   let deviceIncidentActive = false;
-<<<<<<< HEAD
-  let cameraMonitor = null;
-=======
->>>>>>> master
-  const tracks = {};
-
-  function renderIncidentCount(count) {
-    const counter = document.querySelector("#incident-count");
-    if (counter) counter.textContent = `${Math.min(Number(count) || 0, 3)} / 3`;
-  }
-
-  async function refreshIncidentCount() {
-    if (!attemptId || incidentPollBusy) return;
-    incidentPollBusy = true;
-    try {
-      const response = await fetch(`/api/evaluaciones/intento/${attemptId}/incidencias/conteo/`, {
-        credentials: "same-origin",
-        cache: "no-store",
-      });
-      if (!response.ok) return;
-      const data = await response.json();
-      renderIncidentCount(data.incident_count);
-      if (data.status !== "in_progress" && !shell.hidden) {
-        await finishExam(true, "La evaluación ya fue entregada.");
-      }
-    } catch (_) {
-      // El siguiente sondeo recupera el contador al volver la conexión.
-    } finally {
-      incidentPollBusy = false;
-    }
-  }
-
-  function updateDevice(name, ready, label) {
-    const [indicator, text] = statusLabels[name];
-    indicator.classList.toggle("is-ready", ready);
-    text.textContent = label;
-  }
-
-  function makeEventId() {
-    if (crypto.randomUUID) return crypto.randomUUID();
-    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
-      const value = Math.random() * 16 | 0;
-      return (character === "x" ? value : (value & 3 | 8)).toString(16);
-    });
-  }
-
-  async function sendIncident(kind, durationMs = null) {
-    if (!attemptId) return;
-    try {
-      const response = await fetch(`/api/evaluaciones/intento/${attemptId}/incidencias/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": csrf },
-        body: JSON.stringify({ kind, duration_ms: durationMs, client_event_id: makeEventId() }),
-        credentials: "same-origin",
-      });
-      if (!response.ok) throw new Error("incident confirmation failed");
-      const result = await response.json();
-      renderIncidentCount(result.incident_count ?? result.focus_offense_count);
-<<<<<<< HEAD
-      if (result.counts_as_strike === false) {
-        warning.hidden = false;
-        warning.textContent = kind === "phone_detected"
-          ? "Se detectó un teléfono frente a la cámara. Queda registrado en el informe del docente."
-          : "No se te ve en la cámara. Mantente frente a ella durante la evaluación.";
-        window.setTimeout(() => { if (lock.hidden) warning.hidden = true; }, 8000);
-        return;
-      }
-=======
->>>>>>> master
-      if (result.focus_offense_count !== null && result.focus_offense_count !== undefined) {
+  let cameraMonitor = null;      if (result.focus_offense_count !== null && result.focus_offense_count !== undefined) {
         warning.hidden = false;
         warning.textContent = `Advertencia: ${result.focus_offense_count} de 3 infracciones registradas.`;
       }
       if (result.security_ticket_code) {
         warning.hidden = false;
-        warning.textContent = `Se registró la incidencia ${result.security_ticket_code}.`;
+        warning.textContent = `Se registrÃ³ la incidencia ${result.security_ticket_code}.`;
       }
       if (result.auto_submitted) {
-        await finishExam(true, "Evaluación entregada automáticamente por tres infracciones.");
+        await finishExam(true, "EvaluaciÃ³n entregada automÃ¡ticamente por tres infracciones.");
       }
     } catch (error) {
       warning.hidden = false;
-      warning.textContent = "No se pudo confirmar una señal con el servidor. Comprueba tu conexión.";
+      warning.textContent = "No se pudo confirmar una seÃ±al con el servidor. Comprueba tu conexiÃ³n.";
     }
   }
 
@@ -134,7 +65,7 @@
     const setState = () => {
       if (tracks[name] !== track) return;
       const ready = track.readyState === "live" && track.enabled && !track.muted;
-      updateDevice(name, ready, ready ? "Activo" : "Sin señal del dispositivo");
+      updateDevice(name, ready, ready ? "Activo" : "Sin seÃ±al del dispositivo");
       const other = name === "camera" ? tracks.microphone : tracks.camera;
       const bothReady = ready && other && other.readyState === "live" && other.enabled && !other.muted;
       if (!attemptId) {
@@ -142,7 +73,7 @@
         enableDevices.hidden = Boolean(bothReady);
         enableDevices.disabled = false;
       }
-      setLocked(!bothReady, "La interacción está pausada. Restablece cámara y micrófono para continuar.");
+      setLocked(!bothReady, "La interacciÃ³n estÃ¡ pausada. Restablece cÃ¡mara y micrÃ³fono para continuar.");
     };
     track.addEventListener("mute", () => {
       if (tracks[name] !== track) return;
@@ -152,19 +83,19 @@
     track.addEventListener("ended", () => {
       if (tracks[name] !== track) return;
       updateDevice(name, false, "Dispositivo desconectado");
-      setLocked(true, "La interacción está pausada. Restablece cámara y micrófono para continuar.");
+      setLocked(true, "La interacciÃ³n estÃ¡ pausada. Restablece cÃ¡mara y micrÃ³fono para continuar.");
     });
     setState();
   }
 
   async function restoreDevices() {
     restoreDevicesButton.disabled = true;
-    restoreDeviceStatus.textContent = "Solicitando acceso a cámara y micrófono…";
+    restoreDeviceStatus.textContent = "Solicitando acceso a cÃ¡mara y micrÃ³fonoâ€¦";
     try {
       const replacementStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       const videoTrack = replacementStream.getVideoTracks()[0];
       const audioTrack = replacementStream.getAudioTracks()[0];
-      if (!videoTrack || !audioTrack) throw new Error("El navegador no proporcionó ambos dispositivos.");
+      if (!videoTrack || !audioTrack) throw new Error("El navegador no proporcionÃ³ ambos dispositivos.");
       const previousStream = stream;
       tracks.camera = videoTrack;
       tracks.microphone = audioTrack;
@@ -252,7 +183,7 @@
 
   async function saveAnswer(questionId, optionId) {
     const saveStatus = document.querySelector("#save-status");
-    saveStatus.textContent = "Guardando respuesta…";
+    saveStatus.textContent = "Guardando respuestaâ€¦";
     document.querySelectorAll(`#answer-options input[name="question-${questionId}"]`).forEach((input) => { input.disabled = true; });
     try {
       const response = await fetch(`/api/evaluaciones/intento/${attemptId}/respuesta/`, {
@@ -266,7 +197,7 @@
       saveStatus.textContent = "Respuesta guardada.";
       renderQuestion();
     } catch (error) {
-      saveStatus.textContent = "No se guardó. Comprueba tu conexión y vuelve a seleccionar la respuesta.";
+      saveStatus.textContent = "No se guardÃ³. Comprueba tu conexiÃ³n y vuelve a seleccionar la respuesta.";
       renderQuestion();
     }
   }
@@ -298,9 +229,9 @@
       const done = document.createElement("div");
       done.className = "submission-complete";
       const title = document.createElement("h2");
-      title.textContent = automatic ? automaticTitle : "Evaluación entregada";
+      title.textContent = automatic ? automaticTitle : "EvaluaciÃ³n entregada";
       const copy = document.createElement("p");
-      copy.textContent = "Tu intento quedó registrado correctamente.";
+      copy.textContent = "Tu intento quedÃ³ registrado correctamente.";
       const back = document.createElement("a");
       back.className = "button button-primary";
       back.href = "/";
@@ -310,7 +241,7 @@
     } catch (error) {
       submit.disabled = false;
       warning.hidden = false;
-      warning.textContent = "No se pudo confirmar la entrega. Inténtalo de nuevo; tus respuestas siguen guardadas.";
+      warning.textContent = "No se pudo confirmar la entrega. IntÃ©ntalo de nuevo; tus respuestas siguen guardadas.";
     }
   }
 
@@ -340,7 +271,7 @@
     });
     document.querySelector("#next-question").addEventListener("click", () => { currentIndex = Math.min(questions.length - 1, currentIndex + 1); renderQuestion(); });
     document.querySelector("#submit-exam").addEventListener("click", () => {
-      if (window.confirm("¿Entregar la evaluación? Esta acción no se puede deshacer.")) finishExam(false);
+      if (window.confirm("Â¿Entregar la evaluaciÃ³n? Esta acciÃ³n no se puede deshacer.")) finishExam(false);
     });
     renderQuestion();
     updateTimer();
@@ -353,7 +284,6 @@
     shell.hidden = false;
   }
 
-<<<<<<< HEAD
   function cameraIsLive() {
     const camera = tracks.camera;
     return Boolean(camera && camera.readyState === "live" && camera.enabled && !camera.muted);
@@ -364,68 +294,13 @@
     cameraMonitor = window.ExamCameraMonitor.start({
       video: preview,
       status: document.querySelector("#camera-ai-status"),
-      // No analizar si la evaluación está pausada, la pestaña oculta o la cámara sin señal.
+      // No analizar si la evaluaciÃ³n estÃ¡ pausada, la pestaÃ±a oculta o la cÃ¡mara sin seÃ±al.
       skip: () => !lock.hidden || document.visibilityState !== "visible" || !cameraIsLive(),
       report: (kind) => sendIncident(kind),
     });
   }
-
-=======
->>>>>>> master
-  enableDevices.addEventListener("click", async () => {
-    enableDevices.disabled = true;
-    preflightError.textContent = "";
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      preview.srcObject = stream;
-      const videoTrack = stream.getVideoTracks()[0];
-      const audioTrack = stream.getAudioTracks()[0];
-      if (!videoTrack || !audioTrack) throw new Error("El navegador no proporcionó ambos dispositivos.");
-      updateDevice("camera", true, videoTrack.label || "Permiso concedido");
-      updateDevice("microphone", true, audioTrack.label || "Permiso concedido");
-      monitorTrack("camera", videoTrack);
-      monitorTrack("microphone", audioTrack);
-      enableDevices.hidden = true;
-      begin.disabled = false;
     } catch (error) {
-      if (stream) stream.getTracks().forEach((track) => track.stop());
-      stream = null;
-      begin.disabled = true;
-      enableDevices.disabled = false;
-      preflightError.textContent = error.message || "Sin permisos activos no puedes iniciar el examen.";
-    }
-  });
-
-  begin.addEventListener("click", async () => {
-    if (!tracks.camera || !tracks.microphone ||
-        tracks.camera.readyState !== "live" || tracks.microphone.readyState !== "live" ||
-      !tracks.camera.enabled || !tracks.microphone.enabled ||
-        tracks.camera.muted || tracks.microphone.muted) {
-      begin.disabled = true;
-      preflightError.textContent = "Activa cámara y micrófono antes de iniciar el examen.";
-      return;
-    }
-    begin.disabled = true;
-    preflightError.textContent = "";
-    try {
-      if (document.documentElement.requestFullscreen) {
-        try { await document.documentElement.requestFullscreen(); } catch (_) { /* El navegador puede denegar pantalla completa. */ }
-      }
-      const startResponse = await fetch(preflight.dataset.startUrl, {
-        method: "POST",
-        headers: { "X-CSRFToken": csrf },
-        credentials: "same-origin",
-      });
-      const startData = await startResponse.json();
-      if (!startResponse.ok) throw new Error(startData.detail || "No se pudo iniciar la evaluación.");
-      attemptId = startData.attempt_id;
-      await loadExam(attemptId, `${preflight.dataset.apiRoot}${attemptId}/`);
-<<<<<<< HEAD
-      startCameraMonitor();
-=======
->>>>>>> master
-    } catch (error) {
-      preflightError.textContent = error.message || "No se pudieron habilitar cámara y micrófono. Revisa los permisos del navegador.";
+      preflightError.textContent = error.message || "No se pudieron habilitar cÃ¡mara y micrÃ³fono. Revisa los permisos del navegador.";
       begin.disabled = !(tracks.camera?.readyState === "live" && tracks.microphone?.readyState === "live");
     }
   });

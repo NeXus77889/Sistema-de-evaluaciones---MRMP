@@ -1,16 +1,9 @@
-import tempfile
-<<<<<<< HEAD
+﻿import tempfile
 from unittest.mock import ANY, patch
 
 from django.core import mail
 from django.test import TestCase, override_settings
-from django.urls import reverse
-=======
-
-from django.core import mail
-from django.test import TestCase, override_settings
->>>>>>> master
-from django.utils import timezone
+from django.urls import reversefrom django.utils import timezone
 
 from apps.evaluaciones.models import AsignacionDocente, Curso, Exam, Materia
 from apps.intentos.models import Attempt
@@ -71,7 +64,6 @@ class AttemptReportTests(TestCase):
                 create_and_email_report(self.attempt.pk)
                 self.assertEqual(len(mail.outbox), 1)
                 self.assertEqual(AttemptReport.objects.count(), 1)
-<<<<<<< HEAD
 
 
 class NearbyIpTests(TestCase):
@@ -165,5 +157,3 @@ class NearbyIpTests(TestCase):
             self.assertEqual(get_client_ip(request), "190.10.20.5")
         bare = RequestFactory().get("/", REMOTE_ADDR="190.10.20.9")
         self.assertEqual(get_client_ip(bare), "190.10.20.9")
-=======
->>>>>>> master
