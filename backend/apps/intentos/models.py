@@ -23,8 +23,11 @@ class Attempt(models.Model):
     percentage = models.DecimalField(max_digits=5, decimal_places=2, null=True, blank=True)
     suspicion_score = models.PositiveSmallIntegerField(null=True, blank=True)
     suspicion_level = models.CharField(max_length=8, blank=True)
+<<<<<<< HEAD
     # Solo se llena cuando la evaluación tiene activada la detección de IPs cercanas.
     ip_address = models.GenericIPAddressField(null=True, blank=True, verbose_name="IP al iniciar")
+=======
+>>>>>>> master
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -106,6 +109,7 @@ class Incident(models.Model):
         return f"{self.get_kind_display()} ({self.occurred_at:%Y-%m-%d %H:%M:%S})"
 
 
+<<<<<<< HEAD
 # Detecciones automáticas por cámara: se registran y puntúan en el informe, pero no suman
 # a las 3 infracciones que retiran al estudiante ni generan tickets, porque pueden dar
 # falsos positivos.
@@ -117,6 +121,8 @@ def strike_incidents(attempt):
     return Incident.objects.filter(attempt=attempt).exclude(kind__in=NON_STRIKE_KINDS)
 
 
+=======
+>>>>>>> master
 class IncidentReview(models.Model):
     incident = models.ForeignKey(Incident, on_delete=models.CASCADE, related_name="reviews")
     reviewer = models.ForeignKey(

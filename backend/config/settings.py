@@ -155,6 +155,7 @@ EMAIL_HOST_PASSWORD = os.getenv("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.getenv("EMAIL_USE_TLS", "True").lower() in {"1", "true", "yes"}
 DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL", "no-reply@example.com")
 
+<<<<<<< HEAD
 # Detección de IPs cercanas (opción por evaluación)
 # Cuántas entradas contar desde la derecha de X-Forwarded-For para obtener la IP real
 # del estudiante (Render/Cloudflare añaden proxies). Ajusta según tu despliegue.
@@ -163,6 +164,8 @@ CLIENT_IP_PROXY_HOPS = int(os.getenv("CLIENT_IP_PROXY_HOPS", "3"))
 NEARBY_IP_IPV4_PREFIX = int(os.getenv("NEARBY_IP_IPV4_PREFIX", "24"))
 NEARBY_IP_IPV6_PREFIX = int(os.getenv("NEARBY_IP_IPV6_PREFIX", "64"))
 
+=======
+>>>>>>> master
 # Seguridad de Cookies
 SESSION_COOKIE_HTTPONLY = True
 CSRF_COOKIE_HTTPONLY = True

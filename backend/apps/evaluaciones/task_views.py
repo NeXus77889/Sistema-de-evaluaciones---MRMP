@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+=======
+from decimal import Decimal, InvalidOperation
+>>>>>>> master
 import mimetypes
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -16,6 +20,7 @@ from apps.evaluaciones.forms import (
     InsumoCalificacionForm,
     TareaForm,
 )
+<<<<<<< HEAD
 from apps.evaluaciones.grading import (
     ensure_required_insumos,
     is_required_insumo,
@@ -25,6 +30,14 @@ from apps.evaluaciones.grading import (
 from apps.evaluaciones.grading_config import (
     PESO_ACTIVIDADES_TRIMESTRE,
     PESO_EXAMEN_FINAL,
+=======
+from apps.evaluaciones.grading_config import (
+    PESO_ACTIVIDADES_TRIMESTRE,
+    PESO_EVALUACION_PARCIAL,
+    PESO_EXAMEN_FINAL,
+    PESO_INSUMO_1,
+    PESO_INSUMO_2,
+>>>>>>> master
     PESO_TRIMESTRE_1,
     PESO_TRIMESTRE_2,
     PESO_TRIMESTRE_3,
@@ -55,14 +68,21 @@ def _serve_task_file(request, tarea, archivo):
     name = archivo.name.rsplit("/", 1)[-1]
     content_type, _ = mimetypes.guess_type(name)
     inline = content_type == "application/pdf" or bool(content_type and content_type.startswith("image/"))
+<<<<<<< HEAD
     force_download = request.GET.get("descargar", "").lower() in {"1", "true", "si", "sí"}
+=======
+>>>>>>> master
     try:
         file_handle = archivo.open("rb")
     except (FileNotFoundError, OSError, ValueError):
         raise Http404("El archivo ya no está disponible en el almacenamiento.")
     response = FileResponse(
         file_handle,
+<<<<<<< HEAD
         as_attachment=not inline or force_download,
+=======
+        as_attachment=not inline,
+>>>>>>> master
         filename=name,
         content_type=content_type or "application/octet-stream",
     )
@@ -556,6 +576,7 @@ def docente_calificaciones_matrix(request):
             suma_pesos = Decimal("0.00")
             for ins in insumos_parcial:
                 nota = regs.get(ins.pk)
+<<<<<<< HEAD
                 # La entrega es la fuente original de las tareas. Si falta su
                 # registro asociado (por datos antiguos o una sincronización
                 # incompleta), mostrarla en la sábana y contarla en el promedio.
@@ -569,6 +590,8 @@ def docente_calificaciones_matrix(request):
                         nota = (nota_tarea * Decimal("10") / ins.tarea.nota_maxima).quantize(
                             Decimal("0.01"), rounding=ROUND_HALF_UP
                         )
+=======
+>>>>>>> master
                 if nota is not None:
                     suma_ponderada += nota * ins.ponderacion
                     suma_pesos += ins.ponderacion
@@ -642,6 +665,7 @@ def docente_calificaciones_matrix(request):
                 redirect_url += f"&scroll_pos={scroll_pos}"
             return redirect(redirect_url)
 
+<<<<<<< HEAD
         elif action == "delete_insumo":
             normalize_misplaced_final_insumos(selected_curso, selected_materia)
             insumo = get_object_or_404(
@@ -662,6 +686,8 @@ def docente_calificaciones_matrix(request):
                 f"{reverse('docente-calificaciones-matrix')}?curso={selected_curso.pk}&materia={selected_materia.pk}&trimestre={selected_trimestre}&parcial={selected_parcial}"
             )
 
+=======
+>>>>>>> master
         elif action == "create_insumo":
             nombre_ins = request.POST.get("nombre", "").strip()
             tipo_ins = request.POST.get("tipo", InsumoCalificacion.TIPO_INSUMO_1)
@@ -674,8 +700,11 @@ def docente_calificaciones_matrix(request):
                     raise ValueError("Selecciona un trimestre y parcial válidos.")
                 if tipo_ins not in dict(InsumoCalificacion.TIPOS):
                     raise ValueError("Selecciona un tipo de insumo válido.")
+<<<<<<< HEAD
                 if tipo_ins in (InsumoCalificacion.TIPO_EVALUACION, InsumoCalificacion.TIPO_EXAMEN_FINAL):
                     raise ValueError("Las evaluaciones institucionales y el examen final son insumos obligatorios.")
+=======
+>>>>>>> master
                 if not ControlParcial.es_habilitado(trim_ins, parc_ins):
                     raise ValueError(f"El Trimestre {trim_ins} - Parcial {parc_ins} está cerrado.")
                 pond_dec = Decimal(ponderacion_val.replace(",", "."))
@@ -711,6 +740,7 @@ def docente_calificaciones_matrix(request):
     todos_publicados = False
 
     if selected_curso and selected_materia:
+<<<<<<< HEAD
         asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
         docente_asignado = (
             user if user.rol == "DOCENTE"
@@ -728,6 +758,9 @@ def docente_calificaciones_matrix(request):
                 selected_curso, selected_materia, selected_trimestre, selected_parcial
             )
 
+=======
+        # Cargar insumos regulares del trimestre y parcial elegidos
+>>>>>>> master
         insumos_parcial = list(
             InsumoCalificacion.objects.filter(
                 curso=selected_curso,
@@ -736,6 +769,7 @@ def docente_calificaciones_matrix(request):
                 parcial=selected_parcial,
             ).exclude(tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL).order_by("tipo", "created_at")
         )
+<<<<<<< HEAD
         required_ids = {ins.pk for ins in insumos_obligatorios}
         for insumo in insumos_parcial:
             insumo.es_obligatorio = insumo.pk in required_ids
@@ -745,6 +779,74 @@ def docente_calificaciones_matrix(request):
             None,
         )
 
+=======
+
+        # Cargar insumo de Examen Final
+        insumo_examen_final = InsumoCalificacion.objects.filter(
+            curso=selected_curso,
+            materia=selected_materia,
+            tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL,
+        ).first()
+
+        asig_first = assignments.filter(curso=selected_curso, materia=selected_materia).first()
+        docente_asignado = (
+            user if user.rol == "DOCENTE"
+            else (asig_first.docente if asig_first else (User.objects.filter(rol=User.Role.TEACHER, is_active=True).first() or user))
+        )
+
+        # Si no existen insumos en este parcial, crear la estructura inicial predeterminada
+        if not insumos_parcial:
+            with transaction.atomic():
+                i1 = InsumoCalificacion.objects.create(
+                    curso=selected_curso,
+                    materia=selected_materia,
+                    docente=docente_asignado,
+                    nombre="Insumo 1 (Tareas / Actividades individuales)",
+                    tipo=InsumoCalificacion.TIPO_INSUMO_1,
+                    trimestre=selected_trimestre,
+                    parcial=selected_parcial,
+                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
+                    ponderacion=PESO_INSUMO_1,
+                )
+                i2 = InsumoCalificacion.objects.create(
+                    curso=selected_curso,
+                    materia=selected_materia,
+                    docente=docente_asignado,
+                    nombre="Insumo 2 (Lecciones / Proyectos grupales)",
+                    tipo=InsumoCalificacion.TIPO_INSUMO_2,
+                    trimestre=selected_trimestre,
+                    parcial=selected_parcial,
+                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
+                    ponderacion=PESO_INSUMO_2,
+                )
+                ie = InsumoCalificacion.objects.create(
+                    curso=selected_curso,
+                    materia=selected_materia,
+                    docente=docente_asignado,
+                    nombre="Evaluación del Parcial",
+                    tipo=InsumoCalificacion.TIPO_EVALUACION,
+                    trimestre=selected_trimestre,
+                    parcial=selected_parcial,
+                    periodo=f"Trimestre {selected_trimestre} - Parcial {selected_parcial}",
+                    ponderacion=PESO_EVALUACION_PARCIAL,
+                )
+                insumos_parcial = [i1, i2, ie]
+
+        # Asegurar existencia del Examen Final si no existe
+        if not insumo_examen_final:
+            insumo_examen_final = InsumoCalificacion.objects.create(
+                curso=selected_curso,
+                materia=selected_materia,
+                docente=docente_asignado,
+                nombre="Examen Final Institucional",
+                tipo=InsumoCalificacion.TIPO_EXAMEN_FINAL,
+                trimestre=3,
+                parcial=2,
+                periodo="Examen Final",
+                ponderacion=PESO_EXAMEN_FINAL,
+            )
+
+>>>>>>> master
         todos_insumos = insumos_parcial + ([insumo_examen_final] if insumo_examen_final else [])
         todos_publicados = all(i.publicado for i in todos_insumos) if todos_insumos else False
 
@@ -761,6 +863,7 @@ def docente_calificaciones_matrix(request):
             )
         }
 
+<<<<<<< HEAD
         # Repara notas de tareas antiguas que se guardaron antes de que la
         # sincronización con la sábana estuviera activa. Así quedan persistidas
         # en el mismo registro usado por promedios y boletines.
@@ -781,6 +884,8 @@ def docente_calificaciones_matrix(request):
                 )
                 reg_map[registro_key] = nota_sobre_diez
 
+=======
+>>>>>>> master
         estudiantes = selected_curso.estudiantes.filter(is_active=True).order_by("last_name", "first_name")
 
         for est in estudiantes:
@@ -790,6 +895,7 @@ def docente_calificaciones_matrix(request):
 
             for ins in insumos_parcial:
                 nota = reg_map.get((ins.pk, est.pk))
+<<<<<<< HEAD
                 nota_tarea = entrega_grade_map.get((ins.tarea_id, est.pk)) if ins.tarea_id else None
                 if nota is None and nota_tarea is not None:
                     nota = (nota_tarea * Decimal("10") / ins.tarea.nota_maxima).quantize(
@@ -799,6 +905,12 @@ def docente_calificaciones_matrix(request):
                     "insumo": ins,
                     "nota": nota,
                     "nota_tarea": nota_tarea,
+=======
+                notas_insumos.append({
+                    "insumo": ins,
+                    "nota": nota,
+                    "nota_tarea": entrega_grade_map.get((ins.tarea_id, est.pk)) if ins.tarea_id else None,
+>>>>>>> master
                 })
                 if nota is not None:
                     suma_ponderada += nota * ins.ponderacion

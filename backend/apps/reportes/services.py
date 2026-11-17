@@ -1,5 +1,8 @@
 from io import BytesIO
+<<<<<<< HEAD
 from xml.sax.saxutils import escape
+=======
+>>>>>>> master
 
 from django.conf import settings
 from django.core.files.base import ContentFile
@@ -14,11 +17,15 @@ from reportlab.lib.units import mm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from apps.intentos.models import Attempt
+<<<<<<< HEAD
 from apps.monitoreo.network import find_nearby_attempts, network_of
+=======
+>>>>>>> master
 from apps.monitoreo.services import assess_attempt
 from apps.reportes.models import AttemptReport
 
 
+<<<<<<< HEAD
 def _network_section(attempt, styles):
     """Sección "Direcciones IP cercanas" del informe (solo para docente/administración)."""
     story = [Paragraph("Direcciones IP cercanas", styles["SectionHeading"])]
@@ -80,6 +87,9 @@ def build_pdf(attempt, include_network=None):
     if include_network is None:
         include_network = attempt.exam.detect_nearby_ips
     include_network = bool(include_network and attempt.exam.detect_nearby_ips)
+=======
+def build_pdf(attempt):
+>>>>>>> master
     assessment = assess_attempt(attempt)
     events = list(attempt.incidents.all())
     output = BytesIO()
@@ -180,6 +190,7 @@ def build_pdf(attempt, include_network=None):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     story.append(event_table)
+<<<<<<< HEAD
     if {"phone_detected", "face_missing"} & set(assessment.by_kind):
         story.append(Spacer(1, 3 * mm))
         story.append(Paragraph(
@@ -190,6 +201,8 @@ def build_pdf(attempt, include_network=None):
         ))
     if include_network:
         story.extend(_network_section(attempt, styles))
+=======
+>>>>>>> master
     document.build(story, onFirstPage=page_footer, onLaterPages=page_footer)
     return output.getvalue()
 

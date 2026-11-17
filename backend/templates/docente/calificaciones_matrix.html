@@ -35,8 +35,13 @@
   }
 
   .cal-btn-publish {
+<<<<<<< HEAD
     background: var(--cal-primary);
     border-color: var(--cal-primary);
+=======
+    background: var(--cal-ok);
+    border-color: var(--cal-ok);
+>>>>>>> master
   }
 
   .cal-btn-draft {
@@ -53,9 +58,13 @@
 
   .cal-filters {
     margin-bottom: 1.5rem;
+<<<<<<< HEAD
     padding: 1.25rem 1.35rem 1.4rem;
     box-shadow: 0 8px 25px rgba(0, 40, 85, .055);
     border-top: 3px solid var(--cal-accent);
+=======
+    padding: 1.25rem;
+>>>>>>> master
   }
 
   .cal-filters form {
@@ -95,11 +104,16 @@
     color: #1e293b;
     background: var(--cal-surface);
     box-sizing: border-box;
+<<<<<<< HEAD
     transition: border-color .16s ease, box-shadow .16s ease;
   }
 
   .cal-select:focus, .cal-field:focus { outline: none; border-color: var(--cal-accent); box-shadow: 0 0 0 3px rgba(37, 99, 235, .13); }
 
+=======
+  }
+
+>>>>>>> master
   .cal-status {
     margin-bottom: 1rem;
     display: flex;
@@ -115,9 +129,15 @@
   }
 
   .cal-status.is-published {
+<<<<<<< HEAD
     background: #eff6ff;
     border-left-color: var(--cal-accent);
     color: #1e40af;
+=======
+    background: var(--cal-ok-bg);
+    border-left-color: #10b981;
+    color: #065f46;
+>>>>>>> master
   }
 
   .cal-status small {
@@ -146,6 +166,7 @@
     font-size: 1.25rem;
   }
 
+<<<<<<< HEAD
   .cal-overview {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -209,6 +230,8 @@
   .cal-task-grade-source { display: block; margin: .28rem auto 0; color: var(--cal-muted); font-size: .68rem; }
   .cal-sheet-foot { background: linear-gradient(90deg, #f8fafc, #eef5ff); }
 
+=======
+>>>>>>> master
   .cal-save-state {
     font-size: .85rem;
     font-weight: 600;
@@ -236,8 +259,12 @@
 
   .cal-table {
     width: 100%;
+<<<<<<< HEAD
     border-collapse: separate;
     border-spacing: 0;
+=======
+    border-collapse: collapse;
+>>>>>>> master
     min-width: 860px;
   }
 
@@ -253,7 +280,10 @@
   .cal-table th,
   .cal-table td {
     padding: .65rem .75rem;
+<<<<<<< HEAD
     border-bottom: 1px solid #e2e8f0;
+=======
+>>>>>>> master
   }
 
   .cal-th-num {
@@ -298,10 +328,13 @@
     font-size: .7rem;
     font-weight: 700;
   }
+<<<<<<< HEAD
   .cal-tag-obligatorio { display: inline-block; margin: .3rem auto 0; padding: .15rem .5rem; border: 1px solid #f0d58a; border-radius: 999px; color: #76520a; background: #fff8df; font-size: .65rem; font-weight: 800; white-space: nowrap; }
 
   .cal-delete-insumo { display: inline-flex; margin-top: .4rem; padding: .25rem .5rem; border: 1px solid #fecaca; border-radius: .4rem; color: #b91c1c; background: #fff7f7; font-size: .68rem; font-weight: 700; cursor: pointer; }
   .cal-delete-insumo:hover { border-color: #ef4444; background: #fef2f2; }
+=======
+>>>>>>> master
 
   .cal-th-prom {
     text-align: center;
@@ -499,9 +532,12 @@
   }
 
   @media (max-width: 720px) {
+<<<<<<< HEAD
     .cal-overview { grid-template-columns: 1fr; }
     .cal-th-student, .cal-td-student { left: 0; }
     .cal-table-toolbar { align-items: flex-start; flex-direction: column; }
+=======
+>>>>>>> master
 
     .cal-sheet-head,
     .cal-sheet-foot {
@@ -545,10 +581,13 @@
       margin-bottom: 1.2rem;
     }
   }
+<<<<<<< HEAD
 
   @media (min-width: 721px) and (max-width: 1020px) {
     .cal-overview { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
+=======
+>>>>>>> master
 </style>
 
 <div class="cal-page">
@@ -629,6 +668,7 @@
   </section>
 
   {% if selected_curso and selected_materia %}
+<<<<<<< HEAD
   <section class="cal-overview" aria-label="Resumen de la sábana">
     <article class="cal-overview-card">
       <span>Curso seleccionado</span>
@@ -647,6 +687,8 @@
       <strong>Trimestre {{ selected_trimestre }} · Parcial {{ selected_parcial }}</strong>
     </article>
   </section>
+=======
+>>>>>>> master
   {% if es_admin %}
   <div class="cal-status" style="background: #eff6ff; border-left: 4px solid #2563eb; color: #1e40af;">
     <div>
@@ -699,26 +741,36 @@
       </div>
 
       <div class="cal-table-wrap">
+<<<<<<< HEAD
         <div class="cal-table-toolbar">
           <strong>Registro individual por estudiante</strong>
           <span>Las notas se califican sobre 10 · Desplázate horizontalmente para ver todos los insumos</span>
         </div>
+=======
+>>>>>>> master
         <table class="cal-table">
           <thead>
             <tr>
               <th class="cal-th-num">#</th>
               <th class="cal-th-student">Estudiante</th>
               {% for ins in insumos %}
+<<<<<<< HEAD
                 <th class="cal-th-insumo{% if forloop.counter|divisibleby:2 %} is-alt{% endif %}{% if ins.es_obligatorio %} is-required{% endif %}">
+=======
+              <th class="cal-th-insumo{% if forloop.counter|divisibleby:2 %} is-alt{% endif %}">
+>>>>>>> master
                 <strong>{{ ins.nombre }}</strong>
                 <small>Peso: {{ ins.ponderacion }}%</small>
                 {% if ins.tarea_id %}<small>Equivalencia: nota sobre {{ ins.tarea.nota_maxima }} → escala /10</small>{% endif %}
                 {% if ins.tarea_id %}<span class="cal-tag-tarea">Tarea</span>{% endif %}
+<<<<<<< HEAD
                 {% if ins.es_obligatorio %}
                 <span class="cal-tag-obligatorio">Obligatorio · 20%</span>
                 {% elif not es_admin and parcial_habilitado %}
                 <button type="submit" form="deleteInsumoForm" name="insumo_id" value="{{ ins.pk }}" class="cal-delete-insumo" onclick="return confirm('¿Eliminar este insumo y todas sus calificaciones? Esta acción no se puede deshacer.');">Eliminar insumo</button>
                 {% endif %}
+=======
+>>>>>>> master
               </th>
               {% endfor %}
               <th class="cal-th-prom">Promedio Parcial {{ selected_parcial }}</th>
@@ -726,7 +778,10 @@
               <th class="cal-th-final">
                 <strong>Examen Final</strong>
                 <small>Pesa {{ peso_examen_final }}%</small>
+<<<<<<< HEAD
                 <span class="cal-tag-obligatorio">Institucional · obligatorio</span>
+=======
+>>>>>>> master
               </th>
               {% endif %}
             </tr>
@@ -788,6 +843,7 @@
       {% endif %}
     </form>
   </section>
+<<<<<<< HEAD
   {% if not es_admin and parcial_habilitado %}
   <form id="deleteInsumoForm" method="post" hidden>
     {% csrf_token %}
@@ -798,6 +854,13 @@
   <div class="cal-empty">
     <h3>Por favor, selecciona un Curso y una Materia arriba</h3>
     <p>Para desplegar la sábana de calificaciones institucional y gestionar los insumos de tus alumnos por trimestre y parcial.</p>
+=======
+  {% else %}
+  <div class="cal-empty">
+    <h3>Por favor, selecciona un Curso y una Materia arriba</h3>
+    <p>Para desplegar la sábana de calificaciones institucional y gestionar los insumos de tus alumnos por trimestre y
+      parcial.</p>
+>>>>>>> master
   </div>
   {% endif %}
 
@@ -840,6 +903,11 @@
           <select id="insumoTipo" name="tipo" class="cal-field">
             <option value="INSUMO_1">Insumo 1 (Tareas / Actividades individuales)</option>
             <option value="INSUMO_2">Insumo 2 (Lecciones / Proyectos grupales)</option>
+<<<<<<< HEAD
+=======
+            <option value="EVALUACION">Evaluación Parcial</option>
+            <option value="EXAMEN_FINAL">Examen Final</option>
+>>>>>>> master
           </select>
         </div>
 

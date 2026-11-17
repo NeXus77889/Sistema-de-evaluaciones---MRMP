@@ -12,7 +12,11 @@ from django.contrib.auth.views import PasswordChangeView
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch, Q
 from django.db import transaction
+<<<<<<< HEAD
 from django.http import FileResponse, Http404, HttpResponse, HttpResponseForbidden, JsonResponse
+=======
+from django.http import FileResponse, Http404, HttpResponseForbidden, JsonResponse
+>>>>>>> master
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.utils import timezone
@@ -1043,6 +1047,7 @@ def report_download(request, attempt_id):
         )
         return redirect("dashboard")
 
+<<<<<<< HEAD
     # Con la detección de IPs cercanas activa el PDF se genera en cada descarga: así
     # incluye a quienes rindieron después y el estudiante nunca ve datos de otros.
     if attempt.exam.detect_nearby_ips:
@@ -1059,6 +1064,8 @@ def report_download(request, attempt_id):
         response["Content-Disposition"] = f'attachment; filename="informe_intento_{attempt.pk}.pdf"'
         return response
 
+=======
+>>>>>>> master
     # Generar el informe bajo demanda si falta o si no tiene archivo PDF
     if not hasattr(attempt, "report") or not attempt.report.pdf:
         try:

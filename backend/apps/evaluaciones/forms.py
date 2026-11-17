@@ -99,11 +99,14 @@ class ExamForm(forms.ModelForm):
         self.fields["cursos"].choices = grouped_course_choices(
             self.fields["cursos"].queryset
         )
+<<<<<<< HEAD
         self.fields["trimestre"].required = True
         self.fields["parcial"].required = True
         self.fields["parcial"].choices = [(1, "Primer parcial · evaluación en línea")]
         if not self.instance.parcial:
             self.fields["parcial"].initial = 1
+=======
+>>>>>>> master
         if self.instance.pk:
             initial_courses = list(self.instance.cursos.values_list("pk", flat=True))
             if self.instance.curso_id and self.instance.curso_id not in initial_courses:
@@ -113,8 +116,11 @@ class ExamForm(forms.ModelForm):
     def clean(self):
         cleaned_data = super().clean()
         materia = cleaned_data.get("materia")
+<<<<<<< HEAD
         trimestre = cleaned_data.get("trimestre")
         parcial = cleaned_data.get("parcial")
+=======
+>>>>>>> master
         cursos = list(cleaned_data.get("cursos", ()))
         curso = cursos[0] if cursos else cleaned_data.get("curso")
         if curso and not cursos:
@@ -125,10 +131,13 @@ class ExamForm(forms.ModelForm):
             self.instance.curso = curso
         else:
             self.add_error("cursos", "Selecciona al menos un curso destino.")
+<<<<<<< HEAD
         if not trimestre:
             self.add_error("trimestre", "Selecciona el trimestre de la evaluación.")
         if parcial != 1:
             self.add_error("parcial", "Las evaluaciones en línea corresponden al primer parcial.")
+=======
+>>>>>>> master
         if (
             self.docente
             and self.docente.rol == User.Role.TEACHER
@@ -164,8 +173,11 @@ class ExamForm(forms.ModelForm):
         model = Exam
         fields = [
             "materia",
+<<<<<<< HEAD
             "trimestre",
             "parcial",
+=======
+>>>>>>> master
             "curso",
             "cursos",
             "title",
@@ -175,9 +187,12 @@ class ExamForm(forms.ModelForm):
             "available_until",
             "published",
             "results_visible",
+<<<<<<< HEAD
             "detect_nearby_ips",
             "camera_ai_detection",
             "randomize_order",
+=======
+>>>>>>> master
             "students",
         ]
         widgets = {
@@ -188,8 +203,11 @@ class ExamForm(forms.ModelForm):
             "available_until": forms.DateTimeInput(
                 attrs={"type": "datetime-local"}, format="%Y-%m-%dT%H:%M"
             ),
+<<<<<<< HEAD
             "trimestre": forms.Select(),
             "parcial": forms.Select(),
+=======
+>>>>>>> master
             "students": forms.SelectMultiple(attrs={"size": 6}),
         }
 

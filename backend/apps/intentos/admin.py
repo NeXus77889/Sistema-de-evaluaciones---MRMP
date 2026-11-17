@@ -49,7 +49,10 @@ class AttemptAdmin(admin.ModelAdmin):
         "suspicion_level",
         "started_at",
         "submitted_at",
+<<<<<<< HEAD
         "ip_address",
+=======
+>>>>>>> master
         "informe_pdf",
     )
     readonly_fields = (
@@ -60,7 +63,10 @@ class AttemptAdmin(admin.ModelAdmin):
         "suspicion_level",
         "started_at",
         "submitted_at",
+<<<<<<< HEAD
         "ip_address",
+=======
+>>>>>>> master
         "informe_pdf",
     )
 

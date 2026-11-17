@@ -1,7 +1,10 @@
 from decimal import Decimal
 
 from django.db import transaction
+<<<<<<< HEAD
 from django.db.models import Sum
+=======
+>>>>>>> master
 from django.utils import timezone
 
 from apps.evaluaciones.models import Option
@@ -16,6 +19,10 @@ def finish_attempt(attempt_id):
         return attempt, False
 
     earned_points = Decimal("0")
+<<<<<<< HEAD
+=======
+    correct_count = 0
+>>>>>>> master
     answers = Answer.objects.filter(attempt=attempt).select_related("question", "selected_option")
     for answer in answers:
         if (
@@ -24,10 +31,18 @@ def finish_attempt(attempt_id):
             and answer.selected_option.is_correct
         ):
             earned_points += answer.question.points
+<<<<<<< HEAD
     total_points = attempt.exam.questions.aggregate(total=Sum("points"))["total"] or Decimal("0")
     percentage = (
         earned_points * Decimal("100") / total_points
         if total_points
+=======
+            correct_count += 1
+    question_count = attempt.exam.questions.count()
+    percentage = (
+        Decimal(correct_count) * Decimal("100") / question_count
+        if question_count
+>>>>>>> master
         else Decimal("0")
     )
     assessment = assess_attempt(attempt)
@@ -47,9 +62,12 @@ def finish_attempt(attempt_id):
             "submitted_at",
         ]
     )
+<<<<<<< HEAD
     from apps.evaluaciones.grading import sync_online_exam_attempt
 
     sync_online_exam_attempt(attempt)
+=======
+>>>>>>> master
     return attempt, True
 
 def record_answer(attempt, question, option):

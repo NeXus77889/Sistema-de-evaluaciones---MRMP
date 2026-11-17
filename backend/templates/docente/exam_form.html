@@ -164,6 +164,7 @@
           {% if form.materia.errors %}<div class="field-error">{{ form.materia.errors }}</div>{% endif %}
         </div>
 
+<<<<<<< HEAD
         <div class="form-card-field">
           <label for="{{ form.trimestre.id_for_label }}">Trimestre de calificación *</label>
           {{ form.trimestre }}
@@ -178,6 +179,8 @@
           {% if form.parcial.errors %}<div class="field-error">{{ form.parcial.errors }}</div>{% endif %}
         </div>
 
+=======
+>>>>>>> master
         <!-- Campo oculto curso base -->
         <div style="display: none;">
           {{ form.curso }}
@@ -265,6 +268,7 @@
               <span>Mostrar resultados al estudiante al finalizar la prueba</span>
             </label>
             {% if form.results_visible.errors %}<div class="field-error">{{ form.results_visible.errors }}</div>{% endif %}
+<<<<<<< HEAD
 
             <label class="checkbox-inline-label" for="{{ form.detect_nearby_ips.id_for_label }}">
               {{ form.detect_nearby_ips }}
@@ -283,6 +287,8 @@
               <span>Orden aleatorio: cada estudiante ve las preguntas y las opciones en un orden distinto</span>
             </label>
             {% if form.randomize_order.errors %}<div class="field-error">{{ form.randomize_order.errors }}</div>{% endif %}
+=======
+>>>>>>> master
           </div>
         </div>
 
@@ -331,11 +337,16 @@
     </div>
     <dl>
       <div><dt>Materia</dt><dd id="preview-subject">Sin seleccionar</dd></div>
+<<<<<<< HEAD
       <div><dt>Periodo</dt><dd id="preview-period">Sin seleccionar</dd></div>
       <div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div>
       <div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div>
       <div><dt>Preguntas</dt><dd id="preview-question-count">0</dd></div>
       <div><dt>Puntaje total</dt><dd id="preview-total-points">0</dd></div>
+=======
+      <div><dt>Duración</dt><dd><span id="preview-duration">0</span> min</dd></div>
+      <div><dt>Paralelos</dt><dd id="preview-courses">Ninguno seleccionado</dd></div>
+>>>>>>> master
     </dl>
   </section>
 

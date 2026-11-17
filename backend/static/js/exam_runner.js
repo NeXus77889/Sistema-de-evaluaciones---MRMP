@@ -28,7 +28,10 @@
   let incidentPollHandle;
   let incidentPollBusy = false;
   let deviceIncidentActive = false;
+<<<<<<< HEAD
   let cameraMonitor = null;
+=======
+>>>>>>> master
   const tracks = {};
 
   function renderIncidentCount(count) {
@@ -83,6 +86,7 @@
       if (!response.ok) throw new Error("incident confirmation failed");
       const result = await response.json();
       renderIncidentCount(result.incident_count ?? result.focus_offense_count);
+<<<<<<< HEAD
       if (result.counts_as_strike === false) {
         warning.hidden = false;
         warning.textContent = kind === "phone_detected"
@@ -91,6 +95,8 @@
         window.setTimeout(() => { if (lock.hidden) warning.hidden = true; }, 8000);
         return;
       }
+=======
+>>>>>>> master
       if (result.focus_offense_count !== null && result.focus_offense_count !== undefined) {
         warning.hidden = false;
         warning.textContent = `Advertencia: ${result.focus_offense_count} de 3 infracciones registradas.`;
@@ -347,6 +353,7 @@
     shell.hidden = false;
   }
 
+<<<<<<< HEAD
   function cameraIsLive() {
     const camera = tracks.camera;
     return Boolean(camera && camera.readyState === "live" && camera.enabled && !camera.muted);
@@ -363,6 +370,8 @@
     });
   }
 
+=======
+>>>>>>> master
   enableDevices.addEventListener("click", async () => {
     enableDevices.disabled = true;
     preflightError.textContent = "";
@@ -411,7 +420,10 @@
       if (!startResponse.ok) throw new Error(startData.detail || "No se pudo iniciar la evaluación.");
       attemptId = startData.attempt_id;
       await loadExam(attemptId, `${preflight.dataset.apiRoot}${attemptId}/`);
+<<<<<<< HEAD
       startCameraMonitor();
+=======
+>>>>>>> master
     } catch (error) {
       preflightError.textContent = error.message || "No se pudieron habilitar cámara y micrófono. Revisa los permisos del navegador.";
       begin.disabled = !(tracks.camera?.readyState === "live" && tracks.microphone?.readyState === "live");
