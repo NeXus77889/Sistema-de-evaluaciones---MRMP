@@ -283,6 +283,12 @@
               <span>Orden aleatorio: cada estudiante ve las preguntas y las opciones en un orden distinto</span>
             </label>
             {% if form.randomize_order.errors %}<div class="field-error">{{ form.randomize_order.errors }}</div>{% endif %}
+
+            <label class="checkbox-inline-label" for="{{ form.demo_mode.id_for_label }}">
+              {{ form.demo_mode }}
+              <span>Modo demostración (solo exposiciones): al pulsar Alt durante la evaluación aparece una alerta simulada de dispositivo cercano, marcada como SIMULACIÓN; no registra incidencias ni afecta la nota</span>
+            </label>
+            {% if form.demo_mode.errors %}<div class="field-error">{{ form.demo_mode.errors }}</div>{% endif %}
           </div>
         </div>
 

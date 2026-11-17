@@ -123,6 +123,14 @@ class Exam(models.Model):
             "si aparece un teléfono o no se ve a la persona. No guarda imágenes."
         ),
     )
+    demo_mode = models.BooleanField(
+        default=False,
+        verbose_name="Modo demostración",
+        help_text=(
+            "Para exposiciones: al pulsar Alt durante la evaluación se muestra una alerta "
+            "simulada de dispositivo cercano. No registra incidencias ni afecta la nota."
+        ),
+    )
     randomize_order = models.BooleanField(
         default=False,
         verbose_name="Orden aleatorio",

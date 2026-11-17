@@ -212,6 +212,31 @@
     if (attemptId && !shell.hidden && !document.fullscreenElement) sendIncident("fullscreen_exit");
   });
 
+  // Modo demostración (solo exposiciones): pulsar y soltar Alt muestra una alerta simulada.
+  // No llama al servidor: no registra incidencias ni afecta la nota.
+  const demoAlert = document.querySelector("#demo-alert");
+  if (preflight.dataset.demo === "true" && demoAlert) {
+    let altAlone = false;
+    let demoTimer;
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Alt") {
+        if (!event.repeat) altAlone = true;
+      } else {
+        altAlone = false; // Alt usada como combinación (Alt+Tab, etc.): no es la señal
+      }
+    });
+    document.addEventListener("keyup", (event) => {
+      if (event.key !== "Alt" || !altAlone) return;
+      altAlone = false;
+      event.preventDefault(); // evita que Firefox muestre su barra de menú
+      if (!attemptId || shell.hidden) return;
+      demoAlert.hidden = false;
+      window.clearTimeout(demoTimer);
+      demoTimer = window.setTimeout(() => { demoAlert.hidden = true; }, 10000);
+    });
+    demoAlert.addEventListener("click", () => { demoAlert.hidden = true; });
+  }
+
   function renderQuestion() {
     const question = questions[currentIndex];
     if (!question) return;
